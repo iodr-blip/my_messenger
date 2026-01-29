@@ -1,0 +1,8 @@
+{
+  "name": "Mopsgram Pro",
+  "description": "A feature-rich, Telegram-inspired messenger with AI capabilities, optimized for mobile and desktop.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
