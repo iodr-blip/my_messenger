@@ -1,6 +1,9 @@
+toml
 name = "megannait" 
 compatibility_date = "2026-01-30"
-main = "src/index.ts"
+# Проверьте, какой из этих файлов является точкой входа для воркера:
+main = "./index.tsx" # Или main = "./index.tsx"
+# main = "src/index.ts" # Эту строку нужно удалить или закомментировать
 
 [site]
 bucket = "./dist"
