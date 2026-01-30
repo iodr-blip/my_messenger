@@ -1,0 +1,6 @@
+name = "megannait" 
+compatibility_date = "2026-01-30"
+main = "src/index.ts"
+
+[site]
+bucket = "./dist"
