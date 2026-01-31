@@ -21,7 +21,8 @@ import {
   deleteDoc,
   serverTimestamp,
   getDoc,
-  writeBatch
+  writeBatch,
+  deleteField
 } from 'firebase/firestore';
 
 // Полноэкранный просмотр фото
@@ -101,7 +102,25 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastMsgRef = useRef<string | null>(null);
   const activeChat = chats.find(c => c.id === activeChatId);
+
+  // Request notifications permission
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Auto-scroll logic
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [messages, activeChatId]);
 
   useEffect(() => {
     return onSnapshot(doc(db, 'users', user.id), (docSnap) => {
@@ -129,6 +148,21 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
         }
         return { id: docSnap.id, ...data, timestamp: data.timestamp?.toMillis() || Date.now() };
       }) as Message[];
+
+      // Show notification if new message is received and window is not focused or chat is different
+      const latest = chatMsgs[chatMsgs.length - 1];
+      if (latest && latest.senderId !== currentUser.id && latest.id !== lastMsgRef.current) {
+        lastMsgRef.current = latest.id;
+        if (document.visibilityState !== 'visible' || activeChatId !== activeChatId) {
+          if (Notification.permission === 'granted') {
+            new Notification('Новое сообщение', {
+              body: latest.text || 'Медиафайл',
+              icon: 'https://cdn-icons-png.flaticon.com/512/906/906338.png'
+            });
+          }
+        }
+      }
+
       setMessages(prev => ({ ...prev, [activeChatId]: chatMsgs }));
     });
   }, [activeChatId, currentUser.id]);
@@ -184,6 +218,15 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
         batch.delete(doc(db, `chats/${activeChatId}/messages`, id));
       });
       await batch.commit();
+      
+      // Update chat last message if everything was deleted
+      const remainingMsgs = (messages[activeChatId] || []).filter(m => !selectedMsgIds.includes(m.id));
+      if (remainingMsgs.length === 0) {
+        await updateDoc(doc(db, 'chats', activeChatId), {
+           lastMessage: deleteField()
+        });
+      }
+
       clearSelection();
     }
   };
@@ -191,6 +234,14 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
   const deleteSingleMessage = async (msgId: string) => {
     if (!activeChatId) return;
     await deleteDoc(doc(db, `chats/${activeChatId}/messages`, msgId));
+    
+    // Check if list empty now
+    const remainingMsgs = (messages[activeChatId] || []).filter(m => m.id !== msgId);
+    if (remainingMsgs.length === 0) {
+      await updateDoc(doc(db, 'chats', activeChatId), {
+        lastMessage: deleteField()
+      });
+    }
   };
 
   const handleSendMessage = async (text: string, file?: File, isAudio?: boolean) => {

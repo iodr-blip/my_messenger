@@ -45,7 +45,8 @@ const MediaSendModal: React.FC<MediaSendModalProps> = ({ initialFiles, onClose, 
   };
 
   const handleAddMore = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files || []);
+    // Explicitly cast the Array.from result to File[] to fix 'unknown' type error when calling URL.createObjectURL.
+    const selected = Array.from(e.target.files || []) as File[];
     const newMedia = selected.map(file => ({
       id: Math.random().toString(36).substr(2, 9),
       file,

@@ -66,7 +66,7 @@ const ChatItem: React.FC<{
           )}
         </div>
         <p className={`text-[12px] md:text-[13px] truncate ${isActive ? 'text-white/80' : 'text-[#7f91a4]'}`}>
-          {chat.lastMessage?.text || (isSaved ? 'Ваше личное облако' : 'Нет сообщений')}
+          {chat.lastMessage?.text || (isSaved ? 'Ваше личное облако' : 'История очищена')}
         </p>
       </div>
     </button>
