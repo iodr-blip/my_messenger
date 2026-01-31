@@ -13,6 +13,11 @@ const App: React.FC = () => {
   const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Request notification permission on startup
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+
     const updateStatus = async (isOnline: boolean) => {
       const fbUser = auth.currentUser;
       if (fbUser) {
@@ -81,7 +86,7 @@ const App: React.FC = () => {
 
   if (isInitializing) {
     return (
-      <div className="h-screen w-full bg-[#0b0f14] flex items-center justify-center">
+      <div className="h-[100dvh] w-full bg-[#0b0f14] flex items-center justify-center">
         <div className="flex flex-col items-center">
           <div className="w-12 h-12 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-6"></div>
           <p className="text-slate-500 font-bold tracking-[0.3em] text-[10px] uppercase">MeganNait OS Initializing</p>
@@ -92,7 +97,7 @@ const App: React.FC = () => {
 
   if (initError) {
     return (
-      <div className="h-screen w-full bg-[#0b0f14] flex items-center justify-center p-6 text-center">
+      <div className="h-[100dvh] w-full bg-[#0b0f14] flex items-center justify-center p-6 text-center">
         <div className="max-w-md bg-[#17212b] p-8 rounded-3xl border border-red-500/20 shadow-2xl">
           <i className="fa-solid fa-triangle-exclamation text-red-500 text-4xl mb-4"></i>
           <h2 className="text-white font-bold text-xl mb-2">Ошибка конфигурации</h2>
@@ -104,7 +109,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-full overflow-hidden select-none bg-[#0b0f14]">
+    <div className="h-[100dvh] w-full overflow-hidden select-none bg-[#0b0f14]">
       {user ? <Messenger user={user} onLogout={handleLogout} /> : <Auth onComplete={() => {}} />}
     </div>
   );

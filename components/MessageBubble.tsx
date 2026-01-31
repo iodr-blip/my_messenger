@@ -1,11 +1,9 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Message } from '../types';
 
 interface MessageBubbleProps {
   message: Message;
   isMe: boolean;
-  isSelected?: boolean;
   onContextMenu: (e: React.MouseEvent, msg: Message) => void;
   onReaction: (emoji: string) => void;
   onImageClick?: (url: string) => void;
@@ -28,7 +26,7 @@ const StatusIcon = ({ status, className = "" }: { status?: string, className?: s
   );
 };
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isMe, isSelected, onContextMenu, onReaction, onImageClick, currentUserId }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isMe, onContextMenu, onReaction, onImageClick, currentUserId }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -89,10 +87,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isMe, isSelected
 
   const reactionsData = (Object.entries(message.reactions || {}) as [string, string[]][]).filter(([_, users]) => users.length > 0);
 
-  const hasMedia = message.fileUrl || message.audioUrl;
-
   return (
-    <div className={`flex w-full mb-0.5 select-none transition-colors duration-200 ${isMe ? 'justify-end' : 'justify-start'} ${isSelected ? 'bg-blue-500/10' : ''}`}>
+    <div id={`msg-${message.id}`} className={`flex w-full mb-0.5 select-none transition-colors duration-200 ${isMe ? 'justify-end' : 'justify-start'}`}>
       <div className={`flex w-full ${isMe ? 'justify-end pl-12' : 'justify-start pr-12'} animate-fade-in`}>
         <div 
           onContextMenu={(e) => {
@@ -101,7 +97,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isMe, isSelected
           }}
           className={`relative max-w-full p-1 rounded-2xl shadow-sm transition-all cursor-pointer select-text
             ${isMe ? 'bg-[#2b5278] rounded-br-none' : 'bg-[#182533] rounded-bl-none'}
-            ${isSelected ? 'ring-2 ring-blue-500/50 scale-[0.98]' : ''}
+            active:opacity-80
           `}
         >
           {message.replyPreview && (

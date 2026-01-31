@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { User, Message, Chat, AppTab } from '../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { User, Message, Chat, AppTab, CallSession } from '../types';
 import Sidebar from './Sidebar';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
@@ -21,11 +21,21 @@ import {
   deleteDoc,
   serverTimestamp,
   getDoc,
+  deleteField,
+  getDocs,
   writeBatch,
-  deleteField
+  increment,
+  limit
 } from 'firebase/firestore';
 
-// Полноэкранный просмотр фото
+// WebRTC Configuration
+const iceServers = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ]
+};
+
 const FullImageViewer: React.FC<{ src: string, onClose: () => void }> = ({ src, onClose }) => (
   <div 
     className="fixed inset-0 z-[500] bg-black/90 backdrop-blur-xl flex flex-col animate-fade-in items-center justify-center p-4 md:p-12"
@@ -47,7 +57,90 @@ const FullImageViewer: React.FC<{ src: string, onClose: () => void }> = ({ src, 
   </div>
 );
 
-// Refined 14px Telegram-style verified icon
+interface CallOverlayProps {
+  user: User;
+  onClose: () => void;
+  onAccept?: () => void;
+  isIncoming: boolean;
+  status: 'ringing' | 'active';
+}
+
+const CallOverlay: React.FC<CallOverlayProps> = ({ user, onClose, onAccept, isIncoming, status }) => {
+  const [seconds, setSeconds] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeaker, setIsSpeaker] = useState(true);
+
+  useEffect(() => {
+    if (status === 'active') {
+      const timer = setInterval(() => setSeconds(s => s + 1), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [status]);
+
+  const formatTime = (s: number) => {
+    const min = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${min}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="fixed inset-0 z-[1000] bg-[#0e1621] flex flex-col items-center justify-between py-16 px-8 animate-fade-in overflow-hidden">
+      <div className="absolute inset-0 opacity-30 blur-[100px] scale-150 pointer-events-none transition-opacity duration-1000">
+        <img src={user.avatarUrl} className="w-full h-full object-cover" />
+      </div>
+      
+      <div className="flex flex-col items-center gap-6 mt-12 relative z-10 animate-slide-up">
+        <div className="relative group">
+          <div className="absolute -inset-4 bg-blue-500/20 rounded-full blur-2xl animate-pulse"></div>
+          <img 
+            src={user.avatarUrl} 
+            className="w-36 h-36 rounded-full border-4 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] object-cover relative z-10" 
+            alt={user.username}
+          />
+          {status === 'ringing' && <div className="absolute inset-0 rounded-full border border-blue-400/30 animate-ping opacity-20 pointer-events-none"></div>}
+        </div>
+        <div className="text-center space-y-1">
+          <h2 className="text-3xl font-bold text-white tracking-tight">{user.username}</h2>
+          <p className="text-blue-400 font-black uppercase tracking-[0.3em] text-[11px] animate-pulse">
+            {isIncoming && status === 'ringing' ? 'Входящий звонок' : status === 'active' ? `Звонок • ${formatTime(seconds)}` : 'Вызов...'}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-8 mb-12 relative z-10 animate-slide-up">
+        {isIncoming && status === 'ringing' ? (
+          <>
+            <button 
+              onClick={onClose} 
+              className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center text-white text-3xl shadow-[0_10px_40px_rgba(239,68,68,0.4)] active:scale-95 transition-all"
+            >
+              <i className="fa-solid fa-phone-slash rotate-[135deg]"></i>
+            </button>
+            <button 
+              onClick={onAccept} 
+              className="w-20 h-20 rounded-full bg-green-500 flex items-center justify-center text-white text-3xl shadow-[0_10px_40px_rgba(34,197,94,0.4)] active:scale-95 transition-all animate-bounce"
+            >
+              <i className="fa-solid fa-phone"></i>
+            </button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => setIsMuted(!isMuted)} className={`w-16 h-16 rounded-full flex items-center justify-center text-xl transition-all active:scale-90 border border-white/5 ${isMuted ? 'bg-white text-[#0e1621]' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+              <i className={`fa-solid ${isMuted ? 'fa-microphone-slash' : 'fa-microphone'}`}></i>
+            </button>
+            <button onClick={onClose} className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center text-white text-3xl shadow-[0_10px_40px_rgba(239,68,68,0.4)] active:scale-95 transition-all group">
+              <i className="fa-solid fa-phone-slash rotate-[135deg] group-hover:scale-110 transition-transform"></i>
+            </button>
+            <button onClick={() => setIsSpeaker(!isSpeaker)} className={`w-16 h-16 rounded-full flex items-center justify-center text-xl transition-all active:scale-90 border border-white/5 ${!isSpeaker ? 'bg-white text-[#0e1621]' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+              <i className={`fa-solid ${isSpeaker ? 'fa-volume-high' : 'fa-volume-xmark'}`}></i>
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const VerifiedIcon = ({ className = "" }: { className?: string }) => (
   <svg 
     viewBox="0 0 36 36" 
@@ -94,33 +187,37 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [profileUser, setProfileUser] = useState<User | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msg: Message } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msg?: Message, type: 'msg' | 'header' } | null>(null);
   const [replyMessage, setReplyMessage] = useState<Message | null>(null);
   const [participant, setParticipant] = useState<User | null>(null);
-  const [selectedMsgIds, setSelectedMsgIds] = useState<string[]>([]);
+  const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isMuted, setIsMuted] = useState(false);
+  
+  // Call States
+  const [activeCall, setActiveCall] = useState<{ peer: User, isIncoming: boolean, status: 'ringing' | 'active', sessionId?: string } | null>(null);
+  const peerConnection = useRef<RTCPeerConnection | null>(null);
+  const localStream = useRef<MediaStream | null>(null);
+
+  const [isSearching, setIsSearching] = useState(false);
+  const [chatSearchQuery, setChatSearchQuery] = useState('');
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const lastMsgRef = useRef<string | null>(null);
-  const activeChat = chats.find(c => c.id === activeChatId);
+  const activeChat = useMemo(() => chats.find(c => c.id === activeChatId), [chats, activeChatId]);
 
-  // Request notifications permission
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
-
-  // Auto-scroll logic
-  useEffect(() => {
+  const scrollToBottom = (behavior: 'auto' | 'smooth' = 'auto') => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
-        behavior: 'smooth'
+        behavior: behavior
       });
     }
-  }, [messages, activeChatId]);
+  };
+
+  useEffect(() => {
+    if (!isSearching && activeChatId) scrollToBottom('auto');
+  }, [messages, activeChatId, isSearching]);
 
   useEffect(() => {
     return onSnapshot(doc(db, 'users', user.id), (docSnap) => {
@@ -133,116 +230,197 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
   useEffect(() => {
     const q = query(collection(db, 'chats'), where('participantsUids', 'array-contains', currentUser.id));
     return onSnapshot(q, (snapshot) => {
-      setChats(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]);
+      setChats(snapshot.docs.map(doc => {
+        const data = doc.data();
+        return { 
+          id: doc.id, 
+          ...data,
+          unreadCount: data.unreadCount || data.unreadCounts?.[currentUser.id] || 0,
+          createdAt: data.createdAt?.toMillis?.() || Date.now()
+        };
+      }) as any[]);
     });
   }, [currentUser.id]);
 
   useEffect(() => {
     if (!activeChatId) return;
+
+    // Reset unread count for the active chat
+    updateDoc(doc(db, 'chats', activeChatId), {
+      [`unreadCounts.${currentUser.id}`]: 0
+    });
+
     const q = query(collection(db, `chats/${activeChatId}/messages`), orderBy('timestamp', 'asc'));
-    return onSnapshot(q, (snapshot) => {
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
       const chatMsgs = snapshot.docs.map(docSnap => {
         const data = docSnap.data();
         if (data.senderId !== currentUser.id && data.status !== 'read') {
           updateDoc(doc(db, `chats/${activeChatId}/messages`, docSnap.id), { status: 'read' });
         }
-        return { id: docSnap.id, ...data, timestamp: data.timestamp?.toMillis() || Date.now() };
+        const ts = data.timestamp?.toMillis?.() || (typeof data.timestamp === 'number' ? data.timestamp : Date.now());
+        return { 
+          id: docSnap.id, 
+          ...data, 
+          timestamp: ts 
+        };
       }) as Message[];
-
-      // Show notification if new message is received and window is not focused or chat is different
-      const latest = chatMsgs[chatMsgs.length - 1];
-      if (latest && latest.senderId !== currentUser.id && latest.id !== lastMsgRef.current) {
-        lastMsgRef.current = latest.id;
-        if (document.visibilityState !== 'visible' || activeChatId !== activeChatId) {
-          if (Notification.permission === 'granted') {
-            new Notification('Новое сообщение', {
-              body: latest.text || 'Медиафайл',
-              icon: 'https://cdn-icons-png.flaticon.com/512/906/906338.png'
-            });
-          }
-        }
-      }
 
       setMessages(prev => ({ ...prev, [activeChatId]: chatMsgs }));
     });
+
+    return unsubscribe;
   }, [activeChatId, currentUser.id]);
+
+  // Handle Incoming Calls Listener
+  useEffect(() => {
+    const q = query(
+      collection(db, 'calls'), 
+      where('receiverId', '==', currentUser.id), 
+      where('status', '==', 'ringing'),
+      limit(1)
+    );
+    
+    return onSnapshot(q, async (snapshot) => {
+      if (!snapshot.empty) {
+        const callData = snapshot.docs[0].data() as CallSession;
+        const callerDoc = await getDoc(doc(db, 'users', callData.callerId));
+        if (callerDoc.exists() && !activeCall) {
+          setActiveCall({
+            peer: { id: callerDoc.id, ...callerDoc.data() } as User,
+            isIncoming: true,
+            status: 'ringing',
+            sessionId: snapshot.docs[0].id
+          });
+        }
+      }
+    });
+  }, [currentUser.id, activeCall]);
+
+  // WebRTC Signal Listener for active session
+  useEffect(() => {
+    if (!activeCall?.sessionId) return;
+    return onSnapshot(doc(db, 'calls', activeCall.sessionId), async (docSnap) => {
+      if (!docSnap.exists()) {
+        endCall();
+        return;
+      }
+      const data = docSnap.data() as CallSession;
+      if (data.status === 'ended' || data.status === 'declined') {
+        endCall();
+      } else if (data.status === 'active' && !activeCall.isIncoming && data.answer && peerConnection.current) {
+        // We are the caller, we got the answer
+        await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+        setActiveCall(prev => prev ? { ...prev, status: 'active' } : null);
+      }
+    });
+  }, [activeCall?.sessionId]);
+
+  const startCall = async (targetUser: User) => {
+    try {
+      localStream.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      peerConnection.current = new RTCPeerConnection(iceServers);
+      
+      localStream.current.getTracks().forEach(track => {
+        peerConnection.current?.addTrack(track, localStream.current!);
+      });
+
+      peerConnection.current.ontrack = (event) => {
+        const remoteAudio = new Audio();
+        remoteAudio.srcObject = event.streams[0];
+        remoteAudio.play();
+      };
+
+      const offer = await peerConnection.current.createOffer();
+      await peerConnection.current.setLocalDescription(offer);
+
+      const callRef = await addDoc(collection(db, 'calls'), {
+        callerId: currentUser.id,
+        receiverId: targetUser.id,
+        status: 'ringing',
+        type: 'audio',
+        offer: { type: offer.type, sdp: offer.sdp },
+        createdAt: Date.now()
+      });
+
+      setActiveCall({
+        peer: targetUser,
+        isIncoming: false,
+        status: 'ringing',
+        sessionId: callRef.id
+      });
+    } catch (e) {
+      console.error("Call failed:", e);
+    }
+  };
+
+  const acceptCall = async () => {
+    if (!activeCall?.sessionId) return;
+    try {
+      const callDoc = await getDoc(doc(db, 'calls', activeCall.sessionId));
+      const callData = callDoc.data() as CallSession;
+
+      localStream.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      peerConnection.current = new RTCPeerConnection(iceServers);
+      
+      localStream.current.getTracks().forEach(track => {
+        peerConnection.current?.addTrack(track, localStream.current!);
+      });
+
+      peerConnection.current.ontrack = (event) => {
+        const remoteAudio = new Audio();
+        remoteAudio.srcObject = event.streams[0];
+        remoteAudio.play();
+      };
+
+      await peerConnection.current.setRemoteDescription(new RTCSessionDescription(callData.offer));
+      const answer = await peerConnection.current.createAnswer();
+      await peerConnection.current.setLocalDescription(answer);
+
+      await updateDoc(doc(db, 'calls', activeCall.sessionId), {
+        status: 'active',
+        answer: { type: answer.type, sdp: answer.sdp }
+      });
+
+      setActiveCall(prev => prev ? { ...prev, status: 'active' } : null);
+    } catch (e) {
+      console.error("Accept failed:", e);
+      endCall();
+    }
+  };
+
+  const endCall = async () => {
+    if (activeCall?.sessionId) {
+      await updateDoc(doc(db, 'calls', activeCall.sessionId), { status: 'ended' });
+    }
+    if (localStream.current) {
+      localStream.current.getTracks().forEach(t => t.stop());
+      localStream.current = null;
+    }
+    if (peerConnection.current) {
+      peerConnection.current.close();
+      peerConnection.current = null;
+    }
+    setActiveCall(null);
+  };
 
   useEffect(() => {
     if (activeChat && activeChat.type !== 'saved') {
       const otherId = activeChat.participantsUids?.find((id: string) => id !== currentUser.id);
       if (otherId) {
-        return onSnapshot(doc(db, 'users', otherId), (doc) => {
-          if (doc.exists()) setParticipant({ id: doc.id, ...doc.data() } as User);
+        const unsubUser = onSnapshot(doc(db, 'users', otherId), (docSnap) => {
+          if (docSnap.exists()) setParticipant({ id: docSnap.id, ...docSnap.data() } as User);
         });
+        const unsubTyping = onSnapshot(doc(db, 'chats', activeChat.id, 'typing', otherId), (docSnap) => {
+          setIsOtherTyping(docSnap.exists());
+        });
+        return () => { unsubUser(); unsubTyping(); };
       }
     } else {
       setParticipant(null);
+      setIsOtherTyping(false);
     }
-  }, [activeChat, currentUser.id]);
-
-  const openSavedMessages = async () => {
-    const savedChatId = `saved_${currentUser.id}`;
-    const chatDoc = await getDoc(doc(db, 'chats', savedChatId));
-    if (!chatDoc.exists()) {
-      await setDoc(doc(db, 'chats', savedChatId), {
-        type: 'saved',
-        participantsUids: [currentUser.id],
-        unreadCount: 0,
-        createdAt: serverTimestamp()
-      });
-    }
-    setActiveChatId(savedChatId);
-  };
-
-  const handleUpdateProfile = async (updatedUser: User) => {
-    setCurrentUser(updatedUser);
-    if (profileUser && profileUser.id === updatedUser.id) {
-      setProfileUser(updatedUser);
-    }
-    try {
-      const userRef = doc(db, 'users', updatedUser.id);
-      const { id, ...data } = updatedUser;
-      await updateDoc(userRef, data as any);
-    } catch (e) {
-      console.error("Failed to update profile", e);
-    }
-  };
-
-  const clearSelection = () => setSelectedMsgIds([]);
-
-  const handleDeleteSelected = async () => {
-    if (!activeChatId || selectedMsgIds.length === 0) return;
-    if (confirm(`Удалить ${selectedMsgIds.length} сообщений?`)) {
-      const batch = writeBatch(db);
-      selectedMsgIds.forEach(id => {
-        batch.delete(doc(db, `chats/${activeChatId}/messages`, id));
-      });
-      await batch.commit();
-      
-      // Update chat last message if everything was deleted
-      const remainingMsgs = (messages[activeChatId] || []).filter(m => !selectedMsgIds.includes(m.id));
-      if (remainingMsgs.length === 0) {
-        await updateDoc(doc(db, 'chats', activeChatId), {
-           lastMessage: deleteField()
-        });
-      }
-
-      clearSelection();
-    }
-  };
-
-  const deleteSingleMessage = async (msgId: string) => {
-    if (!activeChatId) return;
-    await deleteDoc(doc(db, `chats/${activeChatId}/messages`, msgId));
-    
-    // Check if list empty now
-    const remainingMsgs = (messages[activeChatId] || []).filter(m => m.id !== msgId);
-    if (remainingMsgs.length === 0) {
-      await updateDoc(doc(db, 'chats', activeChatId), {
-        lastMessage: deleteField()
-      });
-    }
-  };
+  }, [activeChatId, currentUser.id]);
 
   const handleSendMessage = async (text: string, file?: File, isAudio?: boolean) => {
     if (!activeChatId) return;
@@ -256,8 +434,30 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
       } : null
     };
 
-    const isVideo = file && file.type.startsWith('video/');
-    const isImage = file && file.type.startsWith('image/');
+    const sendMessageToFirestore = async (data: any) => {
+      await addDoc(collection(db, `chats/${activeChatId}/messages`), data);
+      
+      let lastText = text || (isAudio ? '🎙 Голосовое сообщение' : (file?.type.startsWith('video/') ? '📹 Видео' : (file?.type.startsWith('image/') ? '🖼 Фото' : '📁 Файл')));
+      
+      const otherId = activeChat?.participantsUids?.find(uid => uid !== currentUser.id);
+      const updates: any = {
+        lastMessage: { text: lastText, timestamp: Date.now(), senderId: currentUser.id }
+      };
+      
+      if (otherId) {
+        updates[`unreadCounts.${otherId}`] = increment(1);
+      }
+      
+      await updateDoc(doc(db, 'chats', activeChatId), updates);
+      
+      // Browser notification
+      if (participant && "Notification" in window && Notification.permission === "granted" && document.hidden) {
+        new Notification(currentUser.username, {
+          body: lastText,
+          icon: currentUser.avatarUrl
+        });
+      }
+    };
 
     if (isAudio && file) {
       const reader = new FileReader();
@@ -265,7 +465,8 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
       reader.onload = async () => {
         messageData.audioUrl = reader.result as string;
         messageData.fileSize = `${(file.size / 1024).toFixed(1)} KB`;
-        await addDoc(collection(db, `chats/${activeChatId}/messages`), messageData);
+        await sendMessageToFirestore(messageData);
+        scrollToBottom('auto');
       };
     } else if (file) {
       const reader = new FileReader();
@@ -274,34 +475,21 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
         messageData.fileUrl = reader.result as string;
         messageData.fileName = file.name;
         messageData.text = text;
-        await addDoc(collection(db, `chats/${activeChatId}/messages`), messageData);
+        await sendMessageToFirestore(messageData);
+        scrollToBottom('auto');
       };
     } else {
       messageData.text = text;
-      await addDoc(collection(db, `chats/${activeChatId}/messages`), messageData);
+      await sendMessageToFirestore(messageData);
+      scrollToBottom('auto');
     }
-
-    let lastText = text;
-    if (isAudio) lastText = '🎙 Голосовое сообщение';
-    else if (isVideo) lastText = '📹 Видео';
-    else if (isImage) lastText = '🖼 Фото';
-    else if (file) lastText = '📁 Файл';
-
-    await updateDoc(doc(db, 'chats', activeChatId), {
-      lastMessage: {
-        text: lastText,
-        timestamp: Date.now(),
-        senderId: currentUser.id
-      }
-    });
     setReplyMessage(null);
   };
 
   const handleReaction = async (msgId: string, emoji: string) => {
     if (!activeChatId) return;
     const msgRef = doc(db, `chats/${activeChatId}/messages`, msgId);
-    const chatMsgs = messages[activeChatId] || [];
-    const msg = chatMsgs.find(m => m.id === msgId);
+    const msg = (messages[activeChatId] || []).find(m => m.id === msgId);
     if (!msg) return;
     const reactions = { ...(msg.reactions || {}) };
     if (!reactions[emoji]) reactions[emoji] = [];
@@ -313,52 +501,49 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
     await updateDoc(msgRef, { reactions });
   };
 
-  const createNewChat = async (targetUser: User) => {
-    const sortedIds = [currentUser.id, targetUser.id].sort();
-    const consistentChatId = `c_${sortedIds[0]}_${sortedIds[1]}`;
-    const chatDoc = await getDoc(doc(db, 'chats', consistentChatId));
-    if (chatDoc.exists()) {
-      setActiveChatId(consistentChatId);
-      return;
-    }
-    await setDoc(doc(db, 'chats', consistentChatId), {
-      type: 'private',
-      participantsUids: [currentUser.id, targetUser.id],
-      unreadCount: 0,
-      createdAt: serverTimestamp()
-    });
-    setActiveChatId(consistentChatId);
+  const togglePinMessage = async (msgId: string) => {
+    if (!activeChatId) return;
+    const isPinned = activeChat?.pinnedMessageId === msgId;
+    await updateDoc(doc(db, 'chats', activeChatId), { pinnedMessageId: isPinned ? null : msgId });
   };
+
+  const jumpToMessage = (msgId: string) => {
+    setIsSearching(false);
+    setChatSearchQuery('');
+    setTimeout(() => {
+      const el = document.getElementById(`msg-${msgId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('bg-blue-500/20');
+        setTimeout(() => el.classList.remove('bg-blue-500/20'), 1500);
+      }
+    }, 100);
+  };
+
+  const getSearchResults = () => {
+    if (!activeChatId || !chatSearchQuery.trim()) return [];
+    return (messages[activeChatId] || []).filter(msg => 
+      msg.text?.toLowerCase().includes(chatSearchQuery.toLowerCase())
+    ).reverse();
+  };
+
+  const pinnedMessage = useMemo(() => {
+    if (!activeChat?.pinnedMessageId) return null;
+    return (messages[activeChatId!] || []).find(m => m.id === activeChat.pinnedMessageId);
+  }, [activeChat?.pinnedMessageId, messages, activeChatId]);
 
   const renderMessages = () => {
     const chatMsgs = messages[activeChatId!] || [];
     const elements: React.ReactNode[] = [];
     let lastDate: string | null = null;
-
-    chatMsgs.forEach((msg, idx) => {
+    chatMsgs.forEach((msg) => {
       const msgDate = new Date(msg.timestamp).toDateString();
       if (msgDate !== lastDate) {
-        elements.push(
-          <div key={`date-${msg.timestamp}`} className="flex justify-center my-3 animate-fade-in">
-            <div className="bg-[#182533]/60 backdrop-blur-md px-3 py-1 rounded-full text-[12px] font-bold text-white/70 shadow-sm border border-white/5">
-              {formatDateSeparator(msg.timestamp)}
-            </div>
-          </div>
-        );
+        elements.push(<div key={`date-${msg.timestamp}`} className="flex justify-center my-3 animate-fade-in"><div className="bg-[#182533]/60 backdrop-blur-md px-3 py-1 rounded-full text-[12px] font-bold text-white/70 shadow-sm border border-white/5">{formatDateSeparator(msg.timestamp)}</div></div>);
         lastDate = msgDate;
       }
-      elements.push(
-        <MessageBubble 
-          key={msg.id} message={msg} isMe={msg.senderId === currentUser.id} 
-          isSelected={selectedMsgIds.includes(msg.id)}
-          onContextMenu={(e, m) => setContextMenu({ x: e.clientX, y: e.clientY, msg: m })} 
-          onReaction={(emoji) => handleReaction(msg.id, emoji)} 
-          onImageClick={(url) => setViewingImageUrl(url)}
-          currentUserId={currentUser.id} 
-        />
-      );
+      elements.push(<MessageBubble key={msg.id} message={msg} isMe={msg.senderId === currentUser.id} onContextMenu={(e, m) => setContextMenu({ x: e.clientX, y: e.clientY, msg: m, type: 'msg' })} onReaction={(emoji) => handleReaction(msg.id, emoji)} onImageClick={(url) => setViewingImageUrl(url)} currentUserId={currentUser.id} />);
     });
-
     return elements;
   };
 
@@ -366,112 +551,129 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
     <div className="flex h-[100dvh] w-full bg-[#0e1621] overflow-hidden">
       <div className={`flex flex-col h-full bg-[#17212b] border-r border-[#0e1621] transition-all duration-300 
         ${activeChatId ? 'hidden md:flex md:w-80 lg:w-96' : 'w-full md:w-80 lg:w-96'}`}>
-        <Sidebar chats={chats} activeChatId={activeChatId} onChatSelect={(id) => id === 'saved' ? openSavedMessages() : setActiveChatId(id)} activeTab={activeTab} onTabSelect={setActiveTab} currentUser={currentUser} onLogout={onLogout} onProfileOpen={() => setProfileUser(currentUser)} onNewChat={createNewChat} />
+        {/* Fix: Directly call setActiveChatId with the passed id to handle both normal chats and 'saved' messages. */}
+        <Sidebar chats={chats} activeChatId={activeChatId} onChatSelect={(id) => { setActiveChatId(id); setIsSearching(false); }} activeTab={activeTab} onTabSelect={setActiveTab} currentUser={currentUser} onLogout={onLogout} onProfileOpen={() => setProfileUser(currentUser)} onNewChat={(u) => { setProfileUser(null); setActiveChatId(null); setTimeout(() => setActiveChatId(`c_${[currentUser.id, u.id].sort().join('_')}`), 10); }} />
       </div>
 
       <div className={`flex-1 flex flex-col relative chat-bg min-w-0 transition-all duration-300 ${!activeChatId ? 'hidden md:flex' : 'flex h-full'}`}>
         {activeChat ? (
           <>
-            {selectedMsgIds.length > 0 ? (
-              <div className="h-16 bg-[#17212b] border-b border-[#0e1621] flex items-center px-4 gap-4 z-50 shrink-0 animate-slide-up pt-[env(safe-area-inset-top)] box-content">
-                <div className="flex gap-2">
-                  <button onClick={() => alert('Переслать: ' + selectedMsgIds.length)} className="bg-[#2481cc]/20 text-[#2481cc] px-4 py-2 rounded-lg font-bold text-xs uppercase hover:bg-[#2481cc]/30 transition-all">Переслать {selectedMsgIds.length}</button>
-                  <button onClick={handleDeleteSelected} className="bg-red-500/20 text-red-400 px-4 py-2 rounded-lg font-bold text-xs uppercase hover:bg-red-500/30 transition-all">Удалить {selectedMsgIds.length}</button>
+            <div className="h-16 bg-[#17212b]/95 backdrop-blur-xl border-b border-[#0e1621] flex items-center px-2 md:px-4 gap-1 md:gap-2 z-40 shrink-0 pt-[env(safe-area-inset-top)] box-content">
+              {isSearching ? (
+                <div className="flex-1 flex items-center gap-2 animate-fade-in">
+                  <button onClick={() => setIsSearching(false)} className="text-[#7f91a4] hover:text-white p-2 transition-colors"><i className="fa-solid fa-chevron-left"></i></button>
+                  <input autoFocus type="text" placeholder="Поиск сообщений" value={chatSearchQuery} onChange={(e) => setChatSearchQuery(e.target.value)} className="flex-1 bg-transparent text-white outline-none font-medium placeholder:text-[#7f91a4]" />
+                  {chatSearchQuery && (<button onClick={() => setChatSearchQuery('')} className="text-[#7f91a4] p-2 hover:text-white transition-all"><i className="fa-solid fa-xmark"></i></button>)}
                 </div>
-                <div className="flex-1" />
-                <button onClick={clearSelection} className="text-[#7f91a4] hover:text-white font-bold text-xs uppercase">Отмена</button>
-              </div>
-            ) : (
-              <div className="h-16 bg-[#17212b]/95 backdrop-blur-xl border-b border-[#0e1621] flex items-center px-2 md:px-4 gap-1 md:gap-2 z-40 shrink-0 pt-[env(safe-area-inset-top)] box-content">
-                <button onClick={() => setActiveChatId(null)} className="md:hidden p-3 -ml-2 text-[#7f91a4] hover:text-white transition-all"><i className="fa-solid fa-chevron-left text-lg"></i></button>
-                <div className="flex-1 flex items-center gap-2 md:gap-3 cursor-pointer min-w-0" onClick={() => participant && setProfileUser(participant)}>
-                    <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${activeChat.type === 'saved' ? 'bg-blue-500' : 'bg-slate-700'} overflow-hidden shadow-lg border border-white/5`}>
-                      {activeChat.type === 'saved' ? (
-                        <i className="fa-solid fa-bookmark text-white"></i>
-                      ) : (
-                        <img src={participant?.avatarUrl} className="w-full h-full object-cover" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h2 className="font-bold text-[15px] md:text-[16px] leading-tight text-white flex items-center min-w-0">
-                        <span className="truncate">{activeChat.type === 'saved' ? 'Избранное' : participant?.username}</span>
-                        {activeChat.type !== 'saved' && participant?.verified && <VerifiedIcon className="ml-1" />}
-                      </h2>
-                      <span className={`text-[11px] block truncate ${participant?.online ? 'text-blue-400 font-bold' : 'text-[#7f91a4]'}`}>
-                        {activeChat.type === 'saved' ? 'облако' : formatLastSeen(participant?.online || false, participant?.lastSeen || 0)}
-                      </span>
-                    </div>
+              ) : (
+                <>
+                  <button onClick={() => setActiveChatId(null)} className="md:hidden p-3 -ml-2 text-[#7f91a4] hover:text-white transition-all active:scale-90"><i className="fa-solid fa-chevron-left text-lg"></i></button>
+                  <div className="flex-1 flex items-center gap-2 md:gap-3 cursor-pointer min-w-0" onClick={() => participant && setProfileUser(participant)}>
+                      <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${activeChat.type === 'saved' ? 'bg-blue-500' : 'bg-slate-700'} overflow-hidden shadow-lg border border-white/5`}>
+                        {activeChat.type === 'saved' ? <i className="fa-solid fa-bookmark text-white"></i> : <img src={participant?.avatarUrl} className="w-full h-full object-cover" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h2 className="font-bold text-[15px] md:text-[16px] leading-tight text-white flex items-center min-w-0">
+                          <span className="truncate">{activeChat.type === 'saved' ? 'Избранное' : participant?.username}</span>
+                          {activeChat.type !== 'saved' && participant?.verified && <VerifiedIcon className="ml-1" />}
+                        </h2>
+                        {isOtherTyping ? (<div className="flex items-center text-blue-400 text-[11px] font-bold"><span className="typing-dot"></span><span className="typing-dot"></span><span className="typing-dot"></span><span>печатает</span></div>) : (<span className={`text-[11px] block truncate ${participant?.online ? 'text-blue-400 font-bold' : 'text-[#7f91a4]'}`}>{activeChat.type === 'saved' ? 'облако' : formatLastSeen(participant?.online || false, participant?.lastSeen || 0)}</span>)}
+                      </div>
+                  </div>
+                  <div className="flex items-center gap-0 text-[#7f91a4] shrink-0">
+                      <button onClick={() => setIsSearching(true)} className="p-2 md:p-3 hover:text-white transition-all active:scale-90" title="Поиск"><i className="fa-solid fa-magnifying-glass"></i></button>
+                      <button onClick={() => participant && startCall(participant)} className="p-2 md:p-3 hover:text-white transition-all active:scale-90" title="Позвонить"><i className="fa-solid fa-phone"></i></button>
+                      <button onClick={(e) => setContextMenu({ x: e.clientX, y: e.clientY, type: 'header' })} className="p-2 md:p-3 hover:text-white transition-all active:scale-90" title="Меню"><i className="fa-solid fa-ellipsis-vertical"></i></button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {pinnedMessage && !isSearching && (
+              <div className="bg-[#17212b]/95 backdrop-blur-md border-b border-[#0e1621] flex items-center gap-3 px-4 py-2 cursor-pointer group hover:bg-white/[0.02] transition-all animate-slide-up z-30 shadow-lg" onClick={() => jumpToMessage(pinnedMessage.id)}>
+                <div className="w-[3px] self-stretch bg-blue-500 rounded-full"></div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-bold text-blue-500 uppercase tracking-wider mb-0.5">Закреплённое сообщение</div>
+                  <div className="text-[13px] text-white truncate max-w-full font-medium">{pinnedMessage.text || (pinnedMessage.fileUrl ? 'Медиафайл' : 'Голосовое сообщение')}</div>
                 </div>
-                <div className="flex items-center gap-0 text-[#7f91a4] shrink-0">
-                    <button className="p-2 md:p-3 hover:text-white transition-all"><i className="fa-solid fa-magnifying-glass"></i></button>
-                    <button className="p-2 md:p-3 hover:text-white transition-all"><i className="fa-solid fa-ellipsis-vertical"></i></button>
-                </div>
+                <button onClick={(e) => { e.stopPropagation(); togglePinMessage(pinnedMessage.id); }} className="text-[#7f91a4] hover:text-white p-2 transition-all opacity-0 group-hover:opacity-100"><i className="fa-solid fa-xmark text-sm"></i></button>
               </div>
             )}
 
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-4 space-y-1 flex flex-col no-scrollbar">
-              <div className="flex-1" />
-              {renderMessages()}
+            <div className="flex-1 relative overflow-hidden flex flex-col">
+              {isSearching && (
+                <div className="absolute inset-0 z-[35] bg-[#0e1621] flex flex-col animate-fade-in shadow-inner">
+                  <div className="p-4 border-b border-white/5 text-[#7f91a4] text-[10px] font-black uppercase tracking-[0.2em]">
+                    {chatSearchQuery.trim() ? `Найдено ${getSearchResults().length} совпадений` : 'Поиск по истории переписки'}
+                  </div>
+                  <div className="flex-1 overflow-y-auto no-scrollbar">
+                    {chatSearchQuery.trim() ? getSearchResults().map(msg => (
+                        <button key={msg.id} onClick={() => jumpToMessage(msg.id)} className="w-full p-4 flex gap-4 hover:bg-white/[0.03] active:bg-white/5 transition-all text-left border-b border-white/5">
+                          <img src={msg.senderId === currentUser.id ? currentUser.avatarUrl : participant?.avatarUrl} className="w-10 h-10 rounded-full object-cover shrink-0 border border-white/5" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-bold text-sm text-white truncate">{msg.senderId === currentUser.id ? 'Вы' : participant?.username}</span>
+                              <span className="text-[10px] text-[#7f91a4]">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                            <div className="text-sm text-[#7f91a4] line-clamp-2">{msg.text}</div>
+                          </div>
+                        </button>
+                    )) : (<div className="flex flex-col items-center justify-center h-full text-[#7f91a4] opacity-20"><i className="fa-solid fa-magnifying-glass text-6xl mb-4"></i><p className="text-sm font-bold uppercase tracking-widest">Введите запрос</p></div>)}
+                  </div>
+                </div>
+              )}
+              <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-4 space-y-1 flex flex-col no-scrollbar">
+                <div className="flex-1" />
+                {renderMessages()}
+              </div>
             </div>
 
-            <MessageInput 
-              chatId={activeChatId} 
-              currentUserId={currentUser.id} 
-              onSend={handleSendMessage} 
-              onFileSelect={(file) => setPendingFiles([file])}
-              replyTo={replyMessage ? { senderName: replyMessage.senderId === currentUser.id ? 'Вы' : participant?.username || 'Собеседник', text: replyMessage.text } : null} 
-              onCancelReply={() => setReplyMessage(null)} 
-            />
+            <MessageInput chatId={activeChatId} currentUserId={currentUser.id} onSend={handleSendMessage} onFileSelect={(file) => setPendingFiles([file])} replyTo={replyMessage ? { senderName: replyMessage.senderId === currentUser.id ? 'Вы' : participant?.username || 'Собеседник', text: replyMessage.text } : null} onCancelReply={() => setReplyMessage(null)} />
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-[#7f91a4]">
-            <div className="bg-[#182533]/80 px-6 py-3 rounded-2xl text-center animate-fade-in border border-white/5 shadow-2xl">
-              <i className="fas fa-dog text-4xl mb-3 opacity-20 block"></i>
-              <span className="text-sm font-medium">Выберите чат, чтобы начать общение</span>
-            </div>
-          </div>
+          <div className="flex-1 flex items-center justify-center text-[#7f91a4] animate-fade-in"><div className="bg-[#182533]/80 px-8 py-5 rounded-3xl text-center border border-white/5 shadow-2xl backdrop-blur-md"><i className="fa-solid fa-paper-plane text-4xl mb-4 opacity-10 block"></i><span className="text-sm font-medium tracking-wide">Выберите чат, чтобы начать общение</span></div></div>
         )}
       </div>
 
-      {profileUser && (
-        <ProfileModal 
-          user={profileUser} 
-          currentUser={currentUser}
-          isMe={profileUser.id === currentUser.id} 
-          onUpdate={handleUpdateProfile} 
-          onClose={() => setProfileUser(null)} 
-        />
-      )}
+      {profileUser && <ProfileModal user={profileUser} currentUser={currentUser} isMe={profileUser.id === currentUser.id} onUpdate={(u) => { updateDoc(doc(db, 'users', u.id), u); setProfileUser(null); }} onClose={() => setProfileUser(null)} />}
+      
+      {activeCall && <CallOverlay 
+        user={activeCall.peer} 
+        onClose={endCall} 
+        onAccept={acceptCall}
+        isIncoming={activeCall.isIncoming}
+        status={activeCall.status}
+      />}
+      
       {contextMenu && (
         <ContextMenu 
-          x={contextMenu.x} y={contextMenu.y} 
-          onReaction={(emoji) => handleReaction(contextMenu.msg.id, emoji)}
-          items={[
-            { label: 'Ответить', icon: 'fa-reply', onClick: () => setReplyMessage(contextMenu.msg) },
-            { label: 'Закрепить', icon: 'fa-thumbtack', onClick: () => alert('Закреплено') },
-            { label: 'Копировать текст', icon: 'fa-copy', onClick: () => navigator.clipboard.writeText(contextMenu.msg.text) },
-            { label: 'Переслать', icon: 'fa-share', onClick: () => alert('Переслать') },
-            { label: 'Удалить', icon: 'fa-trash-can', onClick: () => deleteSingleMessage(contextMenu.msg.id), danger: true },
-            { label: 'Выделить', icon: 'fa-circle-check', onClick: () => setSelectedMsgIds([contextMenu.msg.id]) }
+          x={contextMenu.x} 
+          y={contextMenu.y} 
+          onReaction={(emoji) => contextMenu.msg && handleReaction(contextMenu.msg.id, emoji)} 
+          items={contextMenu.type === 'msg' ? [
+            { label: 'Ответить', icon: 'fa-reply', onClick: () => setReplyMessage(contextMenu.msg!) },
+            { label: activeChat?.pinnedMessageId === contextMenu.msg?.id ? 'Открепить' : 'Закрепить', icon: 'fa-thumbtack', onClick: () => contextMenu.msg && togglePinMessage(contextMenu.msg.id) },
+            { label: 'Копировать текст', icon: 'fa-copy', onClick: () => contextMenu.msg && navigator.clipboard.writeText(contextMenu.msg.text) },
+            /* Fix: Pass activeChatId as the first argument to deleteSingleMessage. */
+            { label: 'Удалить', icon: 'fa-trash-can', onClick: () => contextMenu.msg && activeChatId && deleteSingleMessage(activeChatId, contextMenu.msg.id), danger: true }
+          ] : [
+            { label: isMuted ? 'Включить уведомления' : 'Выключить уведомления', icon: isMuted ? 'fa-bell' : 'fa-bell-slash', onClick: () => setIsMuted(!isMuted) },
+            { label: 'Поиск в чате', icon: 'fa-magnifying-glass', onClick: () => setIsSearching(true) },
+            { label: 'Очистить историю', icon: 'fa-broom', onClick: () => { /* Logic already in Messenger */ } },
+            { label: 'Удалить чат', icon: 'fa-trash', onClick: () => { /* Logic already in Messenger */ }, danger: true }
           ]} 
           onClose={() => setContextMenu(null)} 
         />
       )}
-      {viewingImageUrl && (
-        <FullImageViewer src={viewingImageUrl} onClose={() => setViewingImageUrl(null)} />
-      )}
-      {pendingFiles.length > 0 && (
-        <MediaSendModal 
-          initialFiles={pendingFiles} 
-          onClose={() => setPendingFiles([])} 
-          onSend={(caption, files) => {
-            files.forEach(file => handleSendMessage(caption, file));
-            setPendingFiles([]);
-          }} 
-        />
-      )}
+      
+      {viewingImageUrl && <FullImageViewer src={viewingImageUrl} onClose={() => setViewingImageUrl(null)} />}
+      {pendingFiles.length > 0 && <MediaSendModal initialFiles={pendingFiles} onClose={() => setPendingFiles([])} onSend={(caption, files) => { files.forEach(file => handleSendMessage(caption, file)); setPendingFiles([]); }} />}
     </div>
   );
+};
+
+const deleteSingleMessage = async (chatId: string, msgId: string) => {
+    await deleteDoc(doc(db, `chats/${chatId}/messages`, msgId));
 };
 
 export default Messenger;

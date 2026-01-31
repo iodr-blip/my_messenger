@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { User, AuthStep } from '../types';
 import { auth, db } from '../services/firebase';
@@ -25,15 +24,13 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
   const handleError = (err: any) => {
     console.error("Auth Error:", err);
     if (err.code === 'auth/configuration-not-found') {
-      setError('Метод входа по Email/паролю не включен в консоли Firebase.');
+      setError('Метод входа по Email/паролю не включен.');
     } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
       setError('Неверная почта или пароль');
     } else if (err.code === 'auth/email-already-in-use') {
       setError('Этот email уже зарегистрирован');
-    } else if (err.message.includes('permission-denied')) {
-      setError('Ошибка доступа к базе данных.');
     } else {
-      setError(err.message || 'Произошла ошибка при аутентификации');
+      setError('Произошла ошибка при аутентификации');
     }
     setLoading(false);
   };
@@ -115,7 +112,7 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
         else if (step === 'register_profile') setStep('register_username');
         setError(null);
       }}
-      className="absolute left-6 top-6 text-gray-400 hover:text-blue-500 transition-colors p-2"
+      className="absolute left-6 top-8 text-gray-300 hover:text-blue-500 transition-colors"
     >
       <i className="fa-solid fa-arrow-left text-xl"></i>
     </button>
@@ -127,20 +124,20 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
         {step !== 'welcome' && <BackButton />}
 
         {step === 'welcome' && (
-          <div className="text-center py-4">
+          <div className="text-center">
             <div className="auth-logo-circle">
               <i className="fa-solid fa-bolt-lightning"></i>
             </div>
-            <h1 className="text-3xl font-black text-gray-900 mb-1">MeganNait</h1>
-            <div className="space-y-1 mb-10 px-2">
-              <p className="text-blue-600 font-black text-[10px] uppercase tracking-[0.4em]">THE COMMUNICATION</p>
-              <p className="text-gray-500 text-[13px] font-medium leading-relaxed">
-                Безопасный. Быстрый. Бесплатный.
+            <h1 className="text-4xl font-black mb-1">MeganNait</h1>
+            <div className="mb-8">
+              <p className="text-blue-500 font-black text-[10px] uppercase tracking-[0.4em]">THE COMMUNICATION</p>
+              <p className="text-gray-400 text-sm mt-2 leading-relaxed max-w-[240px] mx-auto font-medium">
+                Самый быстрый мессенджер в мире. Мгновенные сообщения. Ноль рекламы. Абсолютно бесплатно.
               </p>
             </div>
             <button 
               onClick={() => setStep('choice')}
-              className="w-full bg-[#3390ec] text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm shadow-xl hover:shadow-blue-500/30 active:scale-95 transition-all"
+              className="w-full bg-[#3390ec] text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-xl hover:brightness-110 active:scale-95 transition-all"
             >
               Продолжить
             </button>
@@ -149,17 +146,17 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
 
         {step === 'choice' && (
           <div className="text-center py-4">
-            <h2 className="text-xl font-bold mb-8">У вас уже есть аккаунт?</h2>
+            <h2 className="text-2xl font-black mb-10 mt-6">У вас уже есть аккаунт?</h2>
             <div className="space-y-4">
               <button 
                 onClick={() => setStep('login')}
-                className="w-full bg-[#3390ec] text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm transition-all"
+                className="w-full bg-[#3390ec] text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all"
               >
                 Да, войти
               </button>
               <button 
                 onClick={() => setStep('register_creds')}
-                className="w-full bg-gray-100 text-gray-700 py-4 rounded-xl font-bold uppercase tracking-widest text-sm transition-all"
+                className="w-full bg-[#f1f1f1] text-gray-700 py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-sm active:scale-95 transition-all"
               >
                 Нет, создать
               </button>
@@ -168,24 +165,24 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
         )}
 
         {step === 'login' && (
-          <form onSubmit={handleLogin} className="space-y-5 pt-8">
-            <h2 className="text-2xl font-black text-center mb-6">Вход</h2>
-            <div className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-5">
+            <h2 className="text-2xl font-black text-center mb-10 mt-6">Вход</h2>
+            <div className="space-y-3">
               <input 
                 type="email" placeholder="Электронная почта"
-                className="w-full p-4 border-2 border-gray-100 rounded-xl outline-none focus:border-blue-500 transition-all font-medium"
+                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
                 value={email} onChange={e => setEmail(e.target.value)}
               />
               <input 
                 type="password" placeholder="Пароль"
-                className="w-full p-4 border-2 border-gray-100 rounded-xl outline-none focus:border-blue-500 transition-all font-medium"
+                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
                 value={password} onChange={e => setPassword(e.target.value)}
               />
             </div>
-            {error && <div className="text-red-500 text-[11px] text-center font-bold animate-fade-in bg-red-50 p-3 rounded-lg border border-red-100 leading-tight">{error}</div>}
+            {error && <div className="text-red-500 text-xs text-center font-bold animate-fade-in">{error}</div>}
             <button 
               type="submit" disabled={loading}
-              className="w-full bg-[#3390ec] text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+              className="w-full bg-[#3390ec] text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
             >
               {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Войти'}
             </button>
@@ -193,29 +190,29 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
         )}
 
         {step === 'register_creds' && (
-          <div className="space-y-5 pt-8">
-            <h2 className="text-2xl font-black text-center mb-6">Регистрация</h2>
-            <div className="space-y-4">
+          <div className="space-y-5">
+            <h2 className="text-2xl font-black text-center mb-10 mt-6">Регистрация</h2>
+            <div className="space-y-3">
               <input 
                 type="email" placeholder="Электронная почта"
-                className="w-full p-4 border-2 border-gray-100 rounded-xl outline-none focus:border-blue-500 transition-all font-medium"
+                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
                 value={email} onChange={e => setEmail(e.target.value)}
               />
               <input 
                 type="password" placeholder="Пароль"
-                className="w-full p-4 border-2 border-gray-100 rounded-xl outline-none focus:border-blue-500 transition-all font-medium"
+                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
                 value={password} onChange={e => setPassword(e.target.value)}
               />
               <input 
                 type="password" placeholder="Подтвердите пароль"
-                className="w-full p-4 border-2 border-gray-100 rounded-xl outline-none focus:border-blue-500 transition-all font-medium"
+                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
                 value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
               />
             </div>
-            {error && <div className="text-red-500 text-[11px] text-center font-bold animate-fade-in bg-red-50 p-3 rounded-lg border border-red-100 leading-tight">{error}</div>}
+            {error && <div className="text-red-500 text-xs text-center font-bold animate-fade-in">{error}</div>}
             <button 
               onClick={nextRegisterStep}
-              className="w-full bg-[#3390ec] text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all"
+              className="w-full bg-[#3390ec] text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all"
             >
               Далее
             </button>
@@ -223,21 +220,21 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
         )}
 
         {step === 'register_username' && (
-          <div className="space-y-5 pt-8">
-            <h2 className="text-2xl font-black text-center mb-2">Юзернейм</h2>
-            <p className="text-xs text-center text-gray-400 mb-6">Ваш уникальный идентификатор для поиска</p>
+          <div className="space-y-5">
+            <h2 className="text-2xl font-black text-center mb-2 mt-6">Юзернейм</h2>
+            <p className="text-xs text-center text-gray-400 mb-8 px-4 font-medium">Ваш уникальный идентификатор для поиска в сети MeganNait</p>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500 font-bold">@</span>
+              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-500 font-black text-lg">@</span>
               <input 
                 type="text" placeholder="username"
-                className="w-full p-4 pl-10 border-2 border-gray-100 rounded-xl outline-none focus:border-blue-500 transition-all font-medium"
+                className="w-full p-4 pl-12 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-black text-lg"
                 value={usernameHandle} onChange={e => setUsernameHandle(e.target.value)}
               />
             </div>
-            {error && <div className="text-red-500 text-[11px] text-center font-bold animate-fade-in bg-red-50 p-3 rounded-lg border border-red-100 leading-tight">{error}</div>}
+            {error && <div className="text-red-500 text-xs text-center font-bold animate-fade-in">{error}</div>}
             <button 
               onClick={nextRegisterStep}
-              className="w-full bg-[#3390ec] text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+              className="w-full bg-[#3390ec] text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
             >
               {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Далее'}
             </button>
@@ -245,24 +242,24 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
         )}
 
         {step === 'register_profile' && (
-          <form onSubmit={finishRegistration} className="space-y-5 pt-8">
-            <h2 className="text-2xl font-black text-center mb-6">О себе</h2>
-            <div className="space-y-4">
+          <form onSubmit={finishRegistration} className="space-y-5">
+            <h2 className="text-2xl font-black text-center mb-10 mt-6">Профиль</h2>
+            <div className="space-y-3">
               <input 
                 type="text" placeholder="Имя"
-                className="w-full p-4 border-2 border-gray-100 rounded-xl outline-none focus:border-blue-500 transition-all font-medium"
+                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
                 value={firstName} onChange={e => setFirstName(e.target.value)}
               />
               <input 
                 type="text" placeholder="Фамилия (необязательно)"
-                className="w-full p-4 border-2 border-gray-100 rounded-xl outline-none focus:border-blue-500 transition-all font-medium"
+                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
                 value={lastName} onChange={e => setLastName(e.target.value)}
               />
             </div>
-            {error && <div className="text-red-500 text-[11px] text-center font-bold animate-fade-in bg-red-50 p-3 rounded-lg border border-red-100 leading-tight">{error}</div>}
+            {error && <div className="text-red-500 text-xs text-center font-bold animate-fade-in">{error}</div>}
             <button 
               type="submit" disabled={loading}
-              className="w-full bg-[#3390ec] text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+              className="w-full bg-[#3390ec] text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
             >
               {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Завершить'}
             </button>

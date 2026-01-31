@@ -25,6 +25,7 @@ const ChatItem: React.FC<{
 }> = ({ chat, isActive, currentUserId, onClick }) => {
   const [participant, setParticipant] = useState<User | null>(null);
   const isSaved = chat.type === 'saved';
+  const unreadCount = chat.unreadCount || 0;
 
   useEffect(() => {
     if (isSaved) return;
@@ -38,7 +39,7 @@ const ChatItem: React.FC<{
   }, [chat.id, currentUserId, isSaved]);
 
   return (
-    <button onClick={onClick} className={`w-full flex items-center gap-3.5 p-3 md:p-3.5 transition-all relative group ${isActive ? 'bg-blue-600' : 'hover:bg-white/5'}`}>
+    <button onClick={onClick} className={`w-full flex items-center gap-3.5 p-3 md:p-3.5 transition-all relative group active:scale-[0.98] ${isActive ? 'bg-blue-600' : 'hover:bg-white/[0.03]'}`}>
       <div className="relative flex-shrink-0">
         {isSaved ? (
           <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-blue-500 flex items-center justify-center text-white shadow-lg">
@@ -65,10 +66,18 @@ const ChatItem: React.FC<{
             </span>
           )}
         </div>
-        <p className={`text-[12px] md:text-[13px] truncate ${isActive ? 'text-white/80' : 'text-[#7f91a4]'}`}>
-          {chat.lastMessage?.text || (isSaved ? 'Ваше личное облако' : 'История очищена')}
-        </p>
+        <div className="flex items-center justify-between">
+            <p className={`text-[12px] md:text-[13px] truncate flex-1 pr-2 ${isActive ? 'text-white/80' : 'text-[#7f91a4]'}`}>
+                {chat.lastMessage?.text || (isSaved ? 'Ваше личное облако' : 'История очищена')}
+            </p>
+            {unreadCount > 0 && !isActive && (
+                <div className="bg-blue-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-lg animate-fade-in border border-white/10">
+                    {unreadCount}
+                </div>
+            )}
+        </div>
       </div>
+      {!isActive && <div className="absolute bottom-0 left-20 right-0 h-[0.5px] bg-white/[0.04]" />}
     </button>
   );
 };
@@ -81,10 +90,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [showContactsSearch, setShowContactsSearch] = useState(false);
   const [registry, setRegistry] = useState<User[]>([]);
   const [searchResults, setSearchResults] = useState<User[]>([]);
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [canInstall, setCanInstall] = useState(false);
 
   useEffect(() => {
-    const handleInstallable = (e: any) => setInstallPrompt(e.detail);
+    const handleInstallable = () => setCanInstall(true);
     window.addEventListener('pwa-installable', handleInstallable);
     return () => window.removeEventListener('pwa-installable', handleInstallable);
   }, []);
@@ -111,10 +120,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const handleInstallApp = async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    if (outcome === 'accepted') setInstallPrompt(null);
+    const prompt = (window as any).deferredPrompt;
+    if (!prompt) return;
+    prompt.prompt();
+    const { outcome } = await prompt.userChoice;
+    if (outcome === 'accepted') {
+      (window as any).deferredPrompt = null;
+      setCanInstall(false);
+    }
   };
 
   return (
@@ -130,7 +143,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <div className="p-4 overflow-y-auto no-scrollbar">
               {registry.map(u => (
-                <button key={u.id} onClick={() => { onNewChat(u); setShowContactsSearch(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-white/5 rounded-2xl transition-all">
+                <button key={u.id} onClick={() => { onNewChat(u); setShowContactsSearch(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-white/5 rounded-2xl transition-all active:scale-[0.98]">
                   <div className="relative shrink-0">
                     <img src={u.avatarUrl} className="w-10 h-10 rounded-full object-cover border border-white/10" />
                     {u.online && <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#17212b] rounded-full" />}
@@ -161,43 +174,43 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
         <div className="flex-1 overflow-y-auto py-2 no-scrollbar">
-          <button onClick={() => { onProfileOpen(); setIsDrawerOpen(false); }} className="w-full flex items-center gap-6 px-5 py-3.5 hover:bg-white/5 transition-all group text-left">
+          <button onClick={() => { onProfileOpen(); setIsDrawerOpen(false); }} className="w-full flex items-center gap-6 px-5 py-3.5 hover:bg-white/5 transition-all group text-left active:bg-white/10">
             <i className="fa-solid fa-user text-xl text-[#7f91a4] group-hover:text-white transition-all w-6 text-center"></i>
             <span className="text-sm font-medium text-white">Мой профиль</span>
           </button>
-          <button onClick={() => { loadAllUsers(); setShowContactsSearch(true); setIsDrawerOpen(false); }} className="w-full flex items-center gap-6 px-5 py-3.5 hover:bg-white/5 transition-all group text-left">
+          <button onClick={() => { loadAllUsers(); setShowContactsSearch(true); setIsDrawerOpen(false); }} className="w-full flex items-center gap-6 px-5 py-3.5 hover:bg-white/5 transition-all group text-left active:bg-white/10">
             <i className="fa-solid fa-address-book text-xl text-[#7f91a4] group-hover:text-white transition-all w-6 text-center"></i>
             <span className="text-sm font-medium text-white">Контакты</span>
           </button>
-          <button onClick={() => { onChatSelect('saved'); setIsDrawerOpen(false); }} className="w-full flex items-center gap-6 px-5 py-3.5 hover:bg-white/5 transition-all group text-left">
+          <button onClick={() => { onChatSelect('saved'); setIsDrawerOpen(false); }} className="w-full flex items-center gap-6 px-5 py-3.5 hover:bg-white/5 transition-all group text-left active:bg-white/10">
             <i className="fa-solid fa-bookmark text-xl text-[#7f91a4] group-hover:text-white transition-all w-6 text-center"></i>
             <span className="text-sm font-medium text-white">Избранное</span>
           </button>
           
-          {installPrompt && (
-            <button onClick={handleInstallApp} className="w-full flex items-center gap-6 px-5 py-3.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all text-left">
-              <i className="fa-solid fa-mobile-screen-button text-xl w-6 text-center"></i>
-              <span className="text-sm font-bold uppercase tracking-wider">Скачать на телефон</span>
+          {canInstall && (
+            <button onClick={handleInstallApp} className="mx-4 my-4 flex items-center gap-4 px-4 py-3 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all text-left rounded-xl active:scale-95">
+              <i className="fa-solid fa-mobile-screen-button text-lg w-5 text-center"></i>
+              <span className="text-[11px] font-bold uppercase tracking-wider">Установить приложение</span>
             </button>
           )}
 
-          <button onClick={onLogout} className="w-full flex items-center gap-6 px-5 py-3.5 hover:bg-red-500/10 text-red-400 transition-all mt-4 text-left">
+          <button onClick={onLogout} className="w-full flex items-center gap-6 px-5 py-3.5 hover:bg-red-500/10 text-red-400 transition-all mt-4 text-left active:bg-red-500/20">
             <i className="fa-solid fa-right-from-bracket text-xl w-6 text-center"></i>
             <span className="text-sm font-medium">Выйти</span>
           </button>
         </div>
-        <div className="p-5 text-[11px] text-[#7f91a4] shrink-0 pb-[max(env(safe-area-inset-bottom),20px)]">MeganNait 1.3.0</div>
+        <div className="p-5 text-[11px] text-[#7f91a4] shrink-0 pb-[max(env(safe-area-inset-bottom),20px)]">MeganNait 1.3.1</div>
       </div>
 
       <div className="p-2 md:p-3 flex items-center gap-2 shrink-0">
-        <button onClick={() => setIsDrawerOpen(true)} className="text-[#7f91a4] p-2 hover:text-white transition-all">
+        <button onClick={() => setIsDrawerOpen(true)} className="text-[#7f91a4] p-2 hover:text-white transition-all active:scale-90">
           <i className="fa-solid fa-bars text-xl"></i>
         </button>
         <div className="flex-1 relative">
           <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-[12px] text-[#7f91a4]"></i>
           <input 
             type="text" placeholder="Поиск" value={search} onChange={e => setSearch(e.target.value)} 
-            className="w-full bg-[#0e1621] rounded-full py-2 pl-10 pr-4 text-sm outline-none text-white placeholder-[#7f91a4] border border-white/5 focus:border-blue-500/30" 
+            className="w-full bg-[#0e1621] rounded-full py-2 pl-10 pr-4 text-sm outline-none text-white placeholder-[#7f91a4] border border-white/5 focus:border-blue-500/30 transition-all" 
           />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7f91a4] hover:text-white transition-colors">
@@ -207,12 +220,12 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto no-scrollbar">
+      <div className="flex-1 overflow-y-auto no-scrollbar scroll-smooth">
         {search.trim().length > 1 && searchResults.length > 0 && (
           <div className="p-2">
             <div className="px-4 py-2 text-[10px] font-black text-blue-400 uppercase tracking-widest">Глобальный поиск</div>
             {searchResults.map(u => (
-              <button key={u.id} onClick={() => { onNewChat(u); setSearch(''); }} className="w-full flex items-center gap-3.5 p-3.5 hover:bg-white/5 transition-all animate-fade-in rounded-2xl">
+              <button key={u.id} onClick={() => { onNewChat(u); setSearch(''); }} className="w-full flex items-center gap-3.5 p-3.5 hover:bg-white/5 transition-all animate-fade-in rounded-2xl active:scale-[0.98]">
                 <div className="relative flex-shrink-0">
                   <img src={u.avatarUrl} className="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover border border-white/10" />
                 </div>

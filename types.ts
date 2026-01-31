@@ -48,7 +48,20 @@ export interface Chat {
   participants: User[];
   participantsUids?: string[];
   lastMessage?: Message;
-  unreadCount: number;
+  unreadCount?: number; // For the local user
+  unreadCounts?: Record<string, number>; // Global unread map {userId: count}
   pinned?: boolean;
   archived?: boolean;
+  pinnedMessageId?: string | null;
+}
+
+export interface CallSession {
+  id: string;
+  callerId: string;
+  receiverId: string;
+  status: 'ringing' | 'active' | 'ended' | 'declined';
+  type: 'audio' | 'video';
+  offer?: any;
+  answer?: any;
+  createdAt: number;
 }

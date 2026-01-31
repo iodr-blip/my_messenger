@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -26,17 +25,18 @@
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background-color: #0e1621;
             color: white;
             margin: 0;
             overflow: hidden;
             -webkit-tap-highlight-color: transparent;
-            -webkit-touch-callout: none; /* Disable system context menu on iOS */
-            user-select: none; /* Disable text selection globally */
+            -webkit-touch-callout: none;
+            user-select: none;
             height: 100dvh;
             width: 100vw;
             touch-action: manipulation;
+            overscroll-behavior: none;
         }
 
         #root {
@@ -44,44 +44,54 @@
             width: 100%;
         }
 
-        .select-text {
-            user-select: text; /* Allow selection only where explicitly needed */
-            -webkit-user-select: text;
-        }
-        
         .auth-container {
             height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #1d2733 0%, #0e1621 100%);
             padding: 20px;
+            background-color: #0e1621;
         }
-        
+
         .auth-box {
-            background: #fff;
-            padding: 32px;
-            border-radius: 24px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            background: white;
             width: 100%;
             max-width: 400px;
-            animation: slideUp 0.4s ease-out;
-            color: #000;
+            padding: 40px;
+            border-radius: 32px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            color: #1a1a1a;
         }
-        
+
         .auth-logo-circle {
-            width: 100px;
-            height: 100px;
-            background: linear-gradient(135deg, #3390ec 0%, #2b5278 100%);
-            border-radius: 30%;
-            margin: 0 auto 16px;
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
+            border-radius: 22px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 48px;
+            margin: 0 auto 20px;
             color: white;
-            box-shadow: 0 8px 25px rgba(51, 144, 236, 0.4);
-            animation: bounceSlow 3s infinite;
+            font-size: 32px;
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+        }
+
+        .select-text {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
         }
 
         .chat-bg {
@@ -91,20 +101,33 @@
         }
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes bounceSlow { 
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-8px); }
+        @keyframes slideUp { 
+            from { opacity: 0; transform: translateY(12px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+
+        @keyframes typingDots {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.1); }
         }
         
-        .animate-fade-in { animation: fadeIn 0.2s ease-out; }
-        .animate-slide-up { animation: slideUp 0.3s ease-out; }
+        .typing-dot {
+            width: 3.5px;
+            height: 3.5px;
+            background-color: currentColor;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 2px;
+            animation: typingDots 1.4s infinite ease-in-out;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; margin-right: 4px; }
+
+        .animate-fade-in { animation: fadeIn 0.15s ease-out; }
+        .animate-slide-up { animation: slideUp 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
         
-        /* Disable automatic highlighting on mobile */
         input, textarea, button {
             -webkit-tap-highlight-color: rgba(0,0,0,0);
             outline: none;
@@ -116,7 +139,7 @@
     "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
     "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
+    "react": "https://esm.sh/react@^19.2.4/",
     "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
     "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
     "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js",
@@ -125,25 +148,28 @@
 }
 </script>
 <script>
-    document.addEventListener('contextmenu', event => event.preventDefault());
+    document.addEventListener('contextmenu', event => {
+        if (!event.target.closest('.select-text')) {
+            event.preventDefault();
+        }
+    });
 
-    // Service Worker Registration
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').then(registration => {
-          console.log('SW registered: ', registration);
-        }).catch(registrationError => {
-          console.log('SW registration failed: ', registrationError);
-        });
+        if (window.location.protocol === 'https:' || window.location.hostname === 'localhost') {
+            navigator.serviceWorker.register('sw.js').then(registration => {
+              console.log('SW registered');
+            }).catch(err => {
+              console.warn('SW registration skipped or failed:', err.message);
+            });
+        }
       });
     }
 
-    // PWA Install Prompt Handler
-    let deferredPrompt;
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
-      deferredPrompt = e;
-      window.dispatchEvent(new CustomEvent('pwa-installable', { detail: e }));
+      window.deferredPrompt = e; 
+      window.dispatchEvent(new CustomEvent('pwa-installable')); 
     });
 </script>
 <link rel="stylesheet" href="/index.css">
