@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MeganNait</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/assets/manifest-CRAfLn0k.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MeganNait">
+    <meta name="theme-color" content="#17212b">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/906/906338.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sat: env(safe-area-inset-top);
+            --sar: env(safe-area-inset-right);
+            --sab: env(safe-area-inset-bottom);
+            --sal: env(safe-area-inset-left);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #0e1621;
+            color: white;
+            margin: 0;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            user-select: none;
+            height: 100dvh;
+            width: 100vw;
+            touch-action: manipulation;
+            overscroll-behavior: none;
+        }
+
+        #root {
+            height: 100%;
+            width: 100%;
+        }
+
+        .auth-container {
+            height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background-color: #0e1621;
+        }
+
+        .auth-box {
+            background: white;
+            width: 100%;
+            max-width: 400px;
+            padding: 40px;
+            border-radius: 32px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            color: #1a1a1a;
+        }
+
+        .auth-logo-circle {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            color: white;
+            font-size: 32px;
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+        }
+
+        .select-text {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+        }
+
+        .chat-bg {
+            background-color: #0e1621;
+            background-image: url("https://www.transparenttextures.com/patterns/cubes.png");
+            background-blend-mode: overlay;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { 
+            from { opacity: 0; transform: translateY(12px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+
+        @keyframes typingDots {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.1); }
+        }
+        
+        .typing-dot {
+            width: 3.5px;
+            height: 3.5px;
+            background-color: currentColor;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 2px;
+            animation: typingDots 1.4s infinite ease-in-out;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; margin-right: 4px; }
+
+        .animate-fade-in { animation: fadeIn 0.15s ease-out; }
+        .animate-slide-up { animation: slideUp 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        
+        input, textarea, button {
+            -webkit-tap-highlight-color: rgba(0,0,0,0);
+            outline: none;
+        }
+    </style>
+
+<script>
+    document.addEventListener('contextmenu', event => {
+        if (!event.target.closest('.select-text')) {
+            event.preventDefault();
+        }
+    });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        if (window.location.protocol === 'https:' || window.location.hostname === 'localhost') {
+            navigator.serviceWorker.register('sw.js').then(registration => {
+              console.log('SW registered');
+            }).catch(err => {
+              console.warn('SW registration skipped or failed:', err.message);
+            });
+        }
+      });
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      window.deferredPrompt = e; 
+      window.dispatchEvent(new CustomEvent('pwa-installable')); 
+    });
+</script>
+<link rel="stylesheet" href="/index.css">
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4/",
+    "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js",
+    "firebase/": "https://esm.sh/firebase@^12.8.0/"
+  }
+}
+</script>
+  <script type="module" crossorigin src="/assets/index-C9iXYRhl.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>

@@ -1,0 +1,23 @@
+
+{
+  "name": "MeganNait Messenger",
+  "short_name": "MeganNait",
+  "description": "High-performance AI Messenger",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0e1621",
+  "theme_color": "#17212b",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/906/906338.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/906/906338.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
