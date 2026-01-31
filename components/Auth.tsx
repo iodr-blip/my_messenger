@@ -131,11 +131,11 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
             <div className="auth-logo-circle">
               <i className="fa-solid fa-bolt-lightning"></i>
             </div>
-            <h1 className="text-3xl font-black text-gray-900 mb-2">MeganNait</h1>
-            <div className="space-y-2 mb-10 px-2">
-              <p className="text-blue-500 font-bold text-[10px] uppercase tracking-[0.2em]">Простой. Быстрый. Твой.</p>
-              <p className="text-gray-500 text-[13px] leading-relaxed">
-                Самый быстрый мессенджер в мире. Бесплатный и безопасный.
+            <h1 className="text-3xl font-black text-gray-900 mb-1">MeganNait</h1>
+            <div className="space-y-1 mb-10 px-2">
+              <p className="text-blue-600 font-black text-[10px] uppercase tracking-[0.4em]">THE COMMUNICATION</p>
+              <p className="text-gray-500 text-[13px] font-medium leading-relaxed">
+                Безопасный. Быстрый. Бесплатный.
               </p>
             </div>
             <button 

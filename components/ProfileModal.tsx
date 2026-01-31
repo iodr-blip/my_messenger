@@ -7,12 +7,15 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 
 interface ProfileModalProps {
   user: User;
+  currentUser: User;
   isMe: boolean;
   onUpdate?: (updatedUser: User) => void;
   onClose: () => void;
 }
 
 type ModalView = 'VIEW' | 'EDIT' | 'SUB_NAME' | 'SUB_HANDLE' | 'SUB_BIO' | 'SUB_PHONE';
+
+const DEFAULT_AVATAR = (name: string) => `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=334155&color=fff`;
 
 // --- Simple Image Viewer Sub-component ---
 const FullImageViewer: React.FC<{ src: string, onClose: () => void }> = ({ src, onClose }) => (
@@ -165,7 +168,7 @@ const FloatingInput = ({ label, value, onChange, placeholder = "", autoFocus = f
   );
 };
 
-const ProfileModal: React.FC<ProfileModalProps> = ({ user, isMe, onUpdate, onClose }) => {
+const ProfileModal: React.FC<ProfileModalProps> = ({ user, currentUser, isMe, onUpdate, onClose }) => {
   const [view, setView] = useState<ModalView>('VIEW');
   const [tempData, setTempData] = useState<User>({ ...user });
   const [cropperSrc, setCropperSrc] = useState<string | null>(null);
@@ -286,25 +289,31 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ user, isMe, onUpdate, onClo
               {user.online && <div className="absolute bottom-4 right-0 w-4 h-4 bg-green-500 border-2 border-[#17212b] rounded-full"></div>}
             </div>
             <h3 className="text-xl font-semibold truncate max-w-full px-4 text-white flex items-center gap-1.5">{user.username} {user.surname || ''} {user.verified && <VerifiedIcon />}</h3>
-            <span className={`text-xs font-medium ${user.online ? 'text-blue-400' : 'text-[#7f91a4]'}`}>{user.online ? 'в сети' : 'был(а) недавно'}</span>
+            <span className={`text-xs font-medium ${user.online ? 'text-blue-400' : 'text-[#7f91a4]'}`}>
+              {user.online ? 'в сети' : 'был(а) недавно'}
+            </span>
           </div>
           <div className="p-4 space-y-1">
-            {user.bio && (
-              <div className="flex gap-5 items-start p-3 hover:bg-white/5 rounded-xl transition-all group">
-                <i className="fa-solid fa-circle-info text-[#7f91a4] mt-1 text-lg w-5 text-center group-hover:text-blue-400"></i>
-                <div className="flex-1">
-                  <div className="text-white text-[15px] whitespace-pre-wrap break-words leading-tight">{user.bio}</div>
-                  <div className="text-[#7f91a4] text-xs font-medium mt-0.5">О себе</div>
-                </div>
+            <div className="flex gap-5 items-start p-3 hover:bg-white/5 rounded-xl transition-all group">
+              <i className="fa-solid fa-circle-info text-[#7f91a4] mt-1 text-lg w-5 text-center group-hover:text-blue-400"></i>
+              <div className="flex-1">
+                <div className="text-white text-[15px] whitespace-pre-wrap break-words leading-tight">{user.bio || 'Пользуюсь MeganNait 💎'}</div>
+                <div className="text-[#7f91a4] text-xs font-medium mt-0.5">О себе</div>
               </div>
-            )}
+            </div>
             <div className="flex gap-5 items-start p-3 hover:bg-white/5 rounded-xl transition-all group">
               <i className="fa-solid fa-at text-[#7f91a4] mt-1 text-lg w-5 text-center group-hover:text-blue-400"></i>
-              <div className="flex-1"><div className="text-blue-400 text-[15px] font-bold">{user.username_handle}</div><div className="text-[#7f91a4] text-xs font-medium mt-0.5">Имя пользователя</div></div>
+              <div className="flex-1">
+                <div className="text-blue-400 text-[15px] font-bold">{user.username_handle}</div>
+                <div className="text-[#7f91a4] text-xs font-medium mt-0.5">Имя пользователя</div>
+              </div>
             </div>
             <div className="flex gap-5 items-start p-3 hover:bg-white/5 rounded-xl transition-all group">
               <i className="fa-solid fa-phone text-[#7f91a4] mt-1 text-lg w-5 text-center group-hover:text-blue-400"></i>
-              <div className="flex-1"><div className="text-white text-[15px] font-medium">{formatPhoneDisplay(user.phoneNumber) || 'Номер не указан'}</div><div className="text-[#7f91a4] text-xs font-medium mt-0.5">Телефон</div></div>
+              <div className="flex-1">
+                <div className="text-white text-[15px] font-medium">{formatPhoneDisplay(user.phoneNumber) || 'Номер не указан'}</div>
+                <div className="text-[#7f91a4] text-xs font-medium mt-0.5">Телефон</div>
+              </div>
             </div>
           </div>
         </div>

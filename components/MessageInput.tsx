@@ -7,11 +7,12 @@ interface MessageInputProps {
   chatId: string;
   currentUserId: string;
   onSend: (text: string, file?: File, isAudio?: boolean) => void;
+  onFileSelect?: (file: File) => void;
   replyTo?: { senderName: string; text: string } | null;
   onCancelReply?: () => void;
 }
 
-const MessageInput: React.FC<MessageInputProps> = ({ chatId, currentUserId, onSend, replyTo, onCancelReply }) => {
+const MessageInput: React.FC<MessageInputProps> = ({ chatId, currentUserId, onSend, onFileSelect, replyTo, onCancelReply }) => {
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
@@ -93,7 +94,14 @@ const MessageInput: React.FC<MessageInputProps> = ({ chatId, currentUserId, onSe
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) { onSend("", file, false); e.target.value = ''; }
+    if (file) { 
+      if (onFileSelect && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
+        onFileSelect(file);
+      } else {
+        onSend("", file, false);
+      }
+      e.target.value = ''; 
+    }
   };
 
   return (
@@ -110,7 +118,7 @@ const MessageInput: React.FC<MessageInputProps> = ({ chatId, currentUserId, onSe
       )}
 
       <div className="p-2 flex items-end gap-1.5 md:gap-2">
-        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+        <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileChange} />
         {!isRecording && <button onClick={() => fileInputRef.current?.click()} className="text-[#7f91a4] hover:text-blue-500 p-2.5 md:p-3 rounded-full transition-all"><i className="fa-solid fa-paperclip text-lg md:text-xl"></i></button>}
         <div className={`flex-1 bg-[#0e1621] rounded-[22px] flex items-end px-3 transition-all border border-white/5 ${isRecording ? 'border-red-500/30' : ''}`}>
           {isRecording ? (

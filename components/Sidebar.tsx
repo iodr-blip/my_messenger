@@ -81,6 +81,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [showContactsSearch, setShowContactsSearch] = useState(false);
   const [registry, setRegistry] = useState<User[]>([]);
   const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleInstallable = (e: any) => setInstallPrompt(e.detail);
+    window.addEventListener('pwa-installable', handleInstallable);
+    return () => window.removeEventListener('pwa-installable', handleInstallable);
+  }, []);
 
   useEffect(() => {
     if (search.trim().length > 1) {
@@ -101,6 +108,13 @@ const Sidebar: React.FC<SidebarProps> = ({
     getDocs(collection(db, 'users')).then(snap => {
       setRegistry(snap.docs.map(d => ({ id: d.id, ...d.data() }) as User).filter(u => u.id !== currentUser.id));
     });
+  };
+
+  const handleInstallApp = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') setInstallPrompt(null);
   };
 
   return (
@@ -159,6 +173,14 @@ const Sidebar: React.FC<SidebarProps> = ({
             <i className="fa-solid fa-bookmark text-xl text-[#7f91a4] group-hover:text-white transition-all w-6 text-center"></i>
             <span className="text-sm font-medium text-white">Избранное</span>
           </button>
+          
+          {installPrompt && (
+            <button onClick={handleInstallApp} className="w-full flex items-center gap-6 px-5 py-3.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all text-left">
+              <i className="fa-solid fa-mobile-screen-button text-xl w-6 text-center"></i>
+              <span className="text-sm font-bold uppercase tracking-wider">Скачать на телефон</span>
+            </button>
+          )}
+
           <button onClick={onLogout} className="w-full flex items-center gap-6 px-5 py-3.5 hover:bg-red-500/10 text-red-400 transition-all mt-4 text-left">
             <i className="fa-solid fa-right-from-bracket text-xl w-6 text-center"></i>
             <span className="text-sm font-medium">Выйти</span>

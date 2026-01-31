@@ -5,6 +5,7 @@ import Sidebar from './Sidebar';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
 import ProfileModal from './ProfileModal';
+import MediaSendModal from './MediaSendModal';
 import ContextMenu, { MenuItem } from './ContextMenu';
 import { db } from '../services/firebase';
 import { 
@@ -22,6 +23,28 @@ import {
   getDoc,
   writeBatch
 } from 'firebase/firestore';
+
+// Полноэкранный просмотр фото
+const FullImageViewer: React.FC<{ src: string, onClose: () => void }> = ({ src, onClose }) => (
+  <div 
+    className="fixed inset-0 z-[500] bg-black/90 backdrop-blur-xl flex flex-col animate-fade-in items-center justify-center p-4 md:p-12"
+    onClick={onClose}
+  >
+    <div className="absolute top-6 right-6 z-10">
+      <button onClick={onClose} className="text-white/60 hover:text-white p-3 transition-all bg-white/10 rounded-full backdrop-blur-md">
+        <i className="fa-solid fa-xmark text-2xl"></i>
+      </button>
+    </div>
+    <div className="relative max-w-full max-h-full flex items-center justify-center">
+      <img 
+        src={src} 
+        className="max-w-full max-h-[90vh] object-contain shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-2xl animate-slide-up select-none border border-white/5" 
+        alt="Full size" 
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  </div>
+);
 
 // Refined 14px Telegram-style verified icon
 export const VerifiedIcon = ({ className = "" }: { className?: string }) => (
@@ -74,9 +97,19 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
   const [replyMessage, setReplyMessage] = useState<Message | null>(null);
   const [participant, setParticipant] = useState<User | null>(null);
   const [selectedMsgIds, setSelectedMsgIds] = useState<string[]>([]);
+  const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeChat = chats.find(c => c.id === activeChatId);
+
+  useEffect(() => {
+    return onSnapshot(doc(db, 'users', user.id), (docSnap) => {
+      if (docSnap.exists()) {
+        setCurrentUser({ id: docSnap.id, ...docSnap.data() } as User);
+      }
+    });
+  }, [user.id]);
 
   useEffect(() => {
     const q = query(collection(db, 'chats'), where('participantsUids', 'array-contains', currentUser.id));
@@ -171,6 +204,10 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
         text: replyMessage.text 
       } : null
     };
+
+    const isVideo = file && file.type.startsWith('video/');
+    const isImage = file && file.type.startsWith('image/');
+
     if (isAudio && file) {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -179,8 +216,6 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
         messageData.fileSize = `${(file.size / 1024).toFixed(1)} KB`;
         await addDoc(collection(db, `chats/${activeChatId}/messages`), messageData);
       };
-      setReplyMessage(null);
-      return;
     } else if (file) {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -190,15 +225,20 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
         messageData.text = text;
         await addDoc(collection(db, `chats/${activeChatId}/messages`), messageData);
       };
-      setReplyMessage(null);
-      return;
     } else {
       messageData.text = text;
+      await addDoc(collection(db, `chats/${activeChatId}/messages`), messageData);
     }
-    await addDoc(collection(db, `chats/${activeChatId}/messages`), messageData);
+
+    let lastText = text;
+    if (isAudio) lastText = '🎙 Голосовое сообщение';
+    else if (isVideo) lastText = '📹 Видео';
+    else if (isImage) lastText = '🖼 Фото';
+    else if (file) lastText = '📁 Файл';
+
     await updateDoc(doc(db, 'chats', activeChatId), {
       lastMessage: {
-        text: isAudio ? '🎙 Голосовое сообщение' : (file ? '🖼 Фотография' : text),
+        text: lastText,
         timestamp: Date.now(),
         senderId: currentUser.id
       }
@@ -261,7 +301,9 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
           key={msg.id} message={msg} isMe={msg.senderId === currentUser.id} 
           isSelected={selectedMsgIds.includes(msg.id)}
           onContextMenu={(e, m) => setContextMenu({ x: e.clientX, y: e.clientY, msg: m })} 
-          onReaction={(emoji) => handleReaction(msg.id, emoji)} currentUserId={currentUser.id} 
+          onReaction={(emoji) => handleReaction(msg.id, emoji)} 
+          onImageClick={(url) => setViewingImageUrl(url)}
+          currentUserId={currentUser.id} 
         />
       );
     });
@@ -293,7 +335,11 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
                 <button onClick={() => setActiveChatId(null)} className="md:hidden p-3 -ml-2 text-[#7f91a4] hover:text-white transition-all"><i className="fa-solid fa-chevron-left text-lg"></i></button>
                 <div className="flex-1 flex items-center gap-2 md:gap-3 cursor-pointer min-w-0" onClick={() => participant && setProfileUser(participant)}>
                     <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${activeChat.type === 'saved' ? 'bg-blue-500' : 'bg-slate-700'} overflow-hidden shadow-lg border border-white/5`}>
-                      {activeChat.type === 'saved' ? <i className="fa-solid fa-bookmark text-white"></i> : <img src={participant?.avatarUrl} className="w-full h-full object-cover" />}
+                      {activeChat.type === 'saved' ? (
+                        <i className="fa-solid fa-bookmark text-white"></i>
+                      ) : (
+                        <img src={participant?.avatarUrl} className="w-full h-full object-cover" />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <h2 className="font-bold text-[15px] md:text-[16px] leading-tight text-white flex items-center min-w-0">
@@ -317,7 +363,14 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
               {renderMessages()}
             </div>
 
-            <MessageInput chatId={activeChatId} currentUserId={currentUser.id} onSend={handleSendMessage} replyTo={replyMessage ? { senderName: replyMessage.senderId === currentUser.id ? 'Вы' : participant?.username || 'Собеседник', text: replyMessage.text } : null} onCancelReply={() => setReplyMessage(null)} />
+            <MessageInput 
+              chatId={activeChatId} 
+              currentUserId={currentUser.id} 
+              onSend={handleSendMessage} 
+              onFileSelect={(file) => setPendingFiles([file])}
+              replyTo={replyMessage ? { senderName: replyMessage.senderId === currentUser.id ? 'Вы' : participant?.username || 'Собеседник', text: replyMessage.text } : null} 
+              onCancelReply={() => setReplyMessage(null)} 
+            />
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-[#7f91a4]">
@@ -329,7 +382,15 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
         )}
       </div>
 
-      {profileUser && <ProfileModal user={profileUser} isMe={profileUser.id === currentUser.id} onUpdate={handleUpdateProfile} onClose={() => setProfileUser(null)} />}
+      {profileUser && (
+        <ProfileModal 
+          user={profileUser} 
+          currentUser={currentUser}
+          isMe={profileUser.id === currentUser.id} 
+          onUpdate={handleUpdateProfile} 
+          onClose={() => setProfileUser(null)} 
+        />
+      )}
       {contextMenu && (
         <ContextMenu 
           x={contextMenu.x} y={contextMenu.y} 
@@ -343,6 +404,19 @@ const Messenger: React.FC<MessengerProps> = ({ user, onLogout }) => {
             { label: 'Выделить', icon: 'fa-circle-check', onClick: () => setSelectedMsgIds([contextMenu.msg.id]) }
           ]} 
           onClose={() => setContextMenu(null)} 
+        />
+      )}
+      {viewingImageUrl && (
+        <FullImageViewer src={viewingImageUrl} onClose={() => setViewingImageUrl(null)} />
+      )}
+      {pendingFiles.length > 0 && (
+        <MediaSendModal 
+          initialFiles={pendingFiles} 
+          onClose={() => setPendingFiles([])} 
+          onSend={(caption, files) => {
+            files.forEach(file => handleSendMessage(caption, file));
+            setPendingFiles([]);
+          }} 
         />
       )}
     </div>

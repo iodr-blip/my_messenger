@@ -32,6 +32,7 @@ export interface Message {
   edited?: boolean;
   audioUrl?: string;
   fileUrl?: string;
+  videoUrl?: string;
   fileName?: string;
   fileSize?: string;
   replyPreview?: {
