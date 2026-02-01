@@ -194,7 +194,6 @@ const Messenger: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLog
         };
       }) as Message[];
 
-      // Filter messages based on user's cleared timestamp (soft delete for current user)
       const clearedAt = (activeChat as any)?.clearedAt?.[currentUser.id] || 0;
       const filteredMsgs = msgs.filter(m => m.timestamp > clearedAt);
 
@@ -217,7 +216,10 @@ const Messenger: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLog
       return;
     }
 
-    const otherId = chatData?.participantsUids?.find(id => id !== currentUser.id);
+    // Fix: Immediately extract and load participant info even if the chat isn't in 'chats' list yet
+    const otherId = chatData?.participantsUids?.find(id => id !== currentUser.id) || 
+                   (activeChatId.startsWith('c_') ? activeChatId.replace('c_', '').split('_').find(id => id !== currentUser.id) : null);
+
     if (otherId) {
       getDoc(doc(db, 'users', otherId)).then(d => {
         if (d.exists()) {
@@ -226,6 +228,8 @@ const Messenger: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLog
           setChatParticipants(prev => ({ ...prev, [u.id]: u }));
         }
       });
+    } else {
+        setParticipant(null);
     }
   }, [activeChatId, chats, currentUser]);
 
@@ -275,6 +279,23 @@ const Messenger: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLog
     }
   };
 
+  const handleMentionClick = async (handle: string) => {
+    const q = query(collection(db, 'users'), where('username_handle', '==', handle));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      setProfileUser({ id: snap.docs[0].id, ...snap.docs[0].data() } as User);
+    }
+  };
+
+  const handlePhoneClick = async (phone: string) => {
+    const normalized = phone.replace(/\s/g, '');
+    const q = query(collection(db, 'users'), where('phoneNumber', '==', normalized));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      setProfileUser({ id: snap.docs[0].id, ...snap.docs[0].data() } as User);
+    }
+  };
+
   const handleSendMessage = async (text: string, audioBlob?: Blob) => {
     if (!activeChatId) return;
     
@@ -316,6 +337,8 @@ const Messenger: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLog
           senderId: currentUser.id 
         }
       };
+
+      const otherId = activeChatId.replace('c_', '').split('_').find(id => id !== currentUser.id);
       
       const chatData = chats.find(c => c.id === activeChatId);
       if (chatData?.type === 'group') {
@@ -324,11 +347,10 @@ const Messenger: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLog
             updates[`unreadCounts.${uid}`] = increment(1);
           }
         });
-      } else {
-        const otherId = activeChatId.replace('c_', '').split('_').find(id => id !== currentUser.id);
-        if (otherId) {
-          updates[`unreadCounts.${otherId}`] = increment(1);
-        }
+      } else if (otherId) {
+        updates[`unreadCounts.${otherId}`] = increment(1);
+        updates.participantsUids = arrayUnion(currentUser.id, otherId);
+        updates.type = 'private';
       }
       await setDoc(doc(db, 'chats', activeChatId), updates, { merge: true });
     }
@@ -372,7 +394,6 @@ const Messenger: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLog
       await batch.commit();
       setAlertMessage('История очищена');
     } else {
-      // Soft delete: update user-specific clearedAt timestamp
       await updateDoc(doc(db, 'chats', activeChatId), {
         [`clearedAt.${currentUser.id}`]: Date.now()
       });
@@ -386,7 +407,6 @@ const Messenger: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLog
     if (activeChatId === 'saved') {
       await handleClearHistory();
     } else {
-      // Leave chat / Hide for current user
       await updateDoc(doc(db, 'chats', activeChatId), {
         participantsUids: arrayRemove(currentUser.id)
       });
@@ -549,8 +569,8 @@ const Messenger: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLog
                           senderName={sender?.username}
                           chatType={activeChat?.type}
                           onReaction={(emoji) => handleReaction(m, emoji)}
-                          onMentionClick={() => {}} 
-                          onPhoneClick={() => {}}
+                          onMentionClick={handleMentionClick} 
+                          onPhoneClick={handlePhoneClick}
                           onInviteClick={handleInviteClick}
                           onContextMenu={(e, msg) => setContextMenu({ x: e.clientX, y: e.clientY, msg: { ...msg } })} 
                         />
@@ -578,14 +598,14 @@ const Messenger: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLog
 
       {showInviteModal && (
         <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#17212b] w-full max-w-[340px] rounded-[32px] overflow-hidden shadow-2xl animate-slide-up flex flex-col border border-white/5 max-h-[80vh]">
-            <div className="p-4 border-b border-[#0e1621] flex items-center justify-between bg-[#17212b]/80 backdrop-blur-xl shrink-0">
-              <span className="font-bold text-white text-[16px]">Добавить участников</span>
+          <div className="bg-[#17212b] w-full max-w-[340px] rounded-[24px] overflow-hidden shadow-2xl animate-slide-up flex flex-col border border-white/5 max-h-[80vh]">
+            <div className="p-5 border-b border-white/5 flex items-center justify-between shrink-0">
+              <span className="font-bold text-white text-[17px]">Добавить участников</span>
               <button onClick={() => { setShowInviteModal(false); setInviteSearchQuery(''); }} className="text-[#7f91a4] p-1.5 active:scale-90 transition-transform"><i className="fa-solid fa-xmark text-lg"></i></button>
             </div>
-            <div className="p-4 space-y-4 overflow-y-auto no-scrollbar flex-1 bg-[#17212b]/50">
-              <div className="bg-[#0e1621] rounded-2xl flex items-center gap-3 px-4 py-3 border border-white/5 shadow-inner focus-within:border-blue-500/30 transition-all">
-                <i className="fa-solid fa-magnifying-glass text-[13px] text-[#7f91a4]"></i>
+            <div className="p-4 space-y-4 overflow-y-auto no-scrollbar flex-1">
+              <div className="bg-[#0e1621] rounded-2xl flex items-center gap-3 px-4 py-2.5 border border-white/5 focus-within:border-blue-500/30 transition-all">
+                <i className="fa-solid fa-magnifying-glass text-[14px] text-[#7f91a4]"></i>
                 <input 
                   type="text" 
                   placeholder="Поиск людей..." 

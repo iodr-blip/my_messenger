@@ -161,6 +161,13 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  const handleUserSelect = (u: User) => {
+    onNewChat(u);
+    setSearch('');
+    setIsDrawerOpen(false);
+    setShowContactsSearch(false);
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#17212b] border-r border-[#0e1621] w-full relative overflow-hidden pt-[env(safe-area-inset-top)]">
       {isDrawerOpen && <div className="fixed inset-0 bg-black/50 z-[100] animate-fade-in" onClick={() => setIsDrawerOpen(false)} />}
@@ -179,7 +186,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <img src={u.avatarUrl} className="w-10 h-10 rounded-full object-cover border border-white/10" />
                     {u.online && <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#17212b] rounded-full" />}
                   </button>
-                  <button onClick={() => { onNewChat(u); setShowContactsSearch(false); }} className="text-left truncate min-w-0 flex-1 active:scale-[0.98]">
+                  <button onClick={() => handleUserSelect(u)} className="text-left truncate min-w-0 flex-1 active:scale-[0.98]">
                     <div className="font-bold text-sm text-white flex items-center gap-1 min-w-0">
                       <span className="truncate">{u.username}</span>
                       {u.verified && <VerifiedIcon className="w-3.5 h-3.5 ml-1" />}
@@ -277,7 +284,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <button onClick={() => onProfileOpen(u)} className="relative flex-shrink-0 active:scale-90 transition-transform">
                   <img src={u.avatarUrl} className="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover border border-white/10" />
                 </button>
-                <button onClick={() => { onNewChat(u); setSearch(''); }} className="text-left truncate flex-1 min-w-0 active:scale-[0.98]">
+                <button onClick={() => handleUserSelect(u)} className="text-left truncate flex-1 min-w-0 active:scale-[0.98]">
                   <div className="font-bold text-[15px] md:text-[16px] text-white flex items-center gap-1 min-w-0">
                     <span className="truncate">{u.username}</span>
                     {u.verified && <VerifiedIcon className="w-4 h-4 ml-1" />}
