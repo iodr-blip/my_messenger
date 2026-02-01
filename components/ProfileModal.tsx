@@ -143,10 +143,12 @@ const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onConfirm, onCanc
   );
 };
 
-const formatPhoneDisplay = (phone?: string) => {
-  if (!phone) return '+888';
+export const formatPhoneDisplay = (phone?: string) => {
+  if (!phone || phone.replace(/\s/g, '') === '+888') return 'Неизвестно';
   const digits = phone.replace(/\D/g, ''); 
   const suffix = digits.slice(3, 11);
+  if (suffix.length === 0) return 'Неизвестно';
+  
   let res = '+888';
   if (suffix.length > 0) res += ` ${suffix.slice(0, 4)}`;
   if (suffix.length > 4) res += ` ${suffix.slice(4, 8)}`;
@@ -311,7 +313,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ user, currentUser, isMe, on
             <div className="flex gap-5 items-start p-3 hover:bg-white/5 rounded-xl transition-all group">
               <i className="fa-solid fa-phone text-[#7f91a4] mt-1 text-lg w-5 text-center group-hover:text-blue-400"></i>
               <div className="flex-1">
-                <div className="text-white text-[15px] font-medium">{formatPhoneDisplay(user.phoneNumber) || 'Номер не указан'}</div>
+                <div className="text-white text-[15px] font-medium">{formatPhoneDisplay(user.phoneNumber)}</div>
                 <div className="text-[#7f91a4] text-xs font-medium mt-0.5">Телефон</div>
               </div>
             </div>
@@ -343,7 +345,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ user, currentUser, isMe, on
             </button>
             <button onClick={() => setView('SUB_PHONE')} className="flex justify-between items-center p-4 hover:bg-white/5 border-b border-white/5 transition-all group">
               <div className="flex items-center gap-4"><i className="fa-solid fa-phone text-[#7f91a4] w-5 text-center group-hover:text-white transition-colors"></i><span className="text-[15px] font-medium">Виртуальный номер</span></div>
-              <span className="text-blue-400 text-[15px] font-bold">{formatPhoneDisplay(user.phoneNumber) || 'Добавить'}</span>
+              <span className="text-blue-400 text-[15px] font-bold">{formatPhoneDisplay(user.phoneNumber) === 'Неизвестно' ? 'Добавить' : formatPhoneDisplay(user.phoneNumber)}</span>
             </button>
             <button onClick={() => setView('SUB_HANDLE')} className="flex justify-between items-center p-4 hover:bg-white/5 transition-all group">
               <div className="flex items-center gap-4"><i className="fa-solid fa-at text-[#7f91a4] w-5 text-center group-hover:text-white transition-colors"></i><span className="text-[15px] font-medium">Имя пользователя</span></div>
@@ -376,10 +378,11 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ user, currentUser, isMe, on
     } else if (view === 'SUB_PHONE') {
       title = "Виртуальный номер";
       const displayValue = formatPhoneDisplay(tempData.phoneNumber);
-      isSaveDisabled = subLoading || (displayValue.length > 4 && displayValue.length < 14);
+      const currentVal = displayValue === 'Неизвестно' ? '+888' : displayValue;
+      isSaveDisabled = subLoading || (currentVal.length > 4 && currentVal.length < 14);
       content = (
         <div className="space-y-4">
-          <FloatingInput error={!!subError} label="Номер телефона" autoFocus maxLength={14} value={displayValue} onChange={(e: any) => {
+          <FloatingInput error={!!subError} label="Номер телефона" autoFocus maxLength={14} value={currentVal} onChange={(e: any) => {
               const val = e.target.value;
               if (val.length < 4) { setTempData({ ...tempData, phoneNumber: '+888' }); return; }
               const digits = val.replace(/\D/g, '');

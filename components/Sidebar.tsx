@@ -1,9 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Chat, User, AppTab } from '../types';
 import { db } from '../services/firebase';
-import { collection, query, where, getDocs, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, doc } from 'firebase/firestore';
 import { VerifiedIcon } from './Messenger';
+import GroupCreateModal from './GroupCreateModal';
 
 interface SidebarProps {
   chats: Chat[];
@@ -13,7 +14,7 @@ interface SidebarProps {
   onTabSelect: (tab: AppTab) => void;
   currentUser: User;
   onLogout: () => void;
-  onProfileOpen: () => void;
+  onProfileOpen: (user?: User) => void;
   onNewChat: (targetUser: User) => void;
 }
 
@@ -25,10 +26,11 @@ const ChatItem: React.FC<{
 }> = ({ chat, isActive, currentUserId, onClick }) => {
   const [participant, setParticipant] = useState<User | null>(null);
   const isSaved = chat.type === 'saved';
+  const isGroup = chat.type === 'group';
   const unreadCount = chat.unreadCount || 0;
 
   useEffect(() => {
-    if (isSaved) return;
+    if (isSaved || isGroup) return;
     const otherId = chat.participantsUids?.find(id => id !== currentUserId);
     if (otherId) {
       const unsub = onSnapshot(doc(db, 'users', otherId), (doc) => {
@@ -36,7 +38,7 @@ const ChatItem: React.FC<{
       });
       return () => unsub();
     }
-  }, [chat.id, currentUserId, isSaved]);
+  }, [chat.id, currentUserId, isSaved, isGroup]);
 
   return (
     <button onClick={onClick} className={`w-full flex items-center gap-3.5 p-3 md:p-3.5 transition-all relative group active:scale-[0.98] ${isActive ? 'bg-blue-600' : 'hover:bg-white/[0.03]'}`}>
@@ -45,18 +47,22 @@ const ChatItem: React.FC<{
           <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-blue-500 flex items-center justify-center text-white shadow-lg">
             <i className="fa-solid fa-bookmark text-xl md:text-2xl" />
           </div>
+        ) : isGroup ? (
+          <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-blue-600 flex items-center justify-center text-white overflow-hidden shadow-md border border-white/5">
+            <img src={chat.avatarUrl} className="w-full h-full object-cover" />
+          </div>
         ) : (
           <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-slate-700 flex items-center justify-center text-white overflow-hidden shadow-md border border-white/5">
             {participant?.avatarUrl ? <img src={participant.avatarUrl} className="w-full h-full object-cover" /> : <i className="fa-solid fa-user text-lg md:text-xl" />}
           </div>
         )}
-        {!isSaved && participant?.online && <div className="absolute bottom-0.5 right-0.5 w-3 h-3 md:w-3.5 md:h-3.5 bg-green-500 border-2 border-[#17212b] rounded-full" />}
+        {!isSaved && !isGroup && participant?.online && <div className="absolute bottom-0.5 right-0.5 w-3 h-3 md:w-3.5 md:h-3.5 bg-green-500 border-2 border-[#17212b] rounded-full" />}
       </div>
       <div className="flex-1 text-left truncate">
         <div className="flex justify-between items-center mb-0.5">
           <span className={`font-bold text-[15px] md:text-[16px] truncate flex items-center ${isActive ? 'text-white' : 'text-gray-100'}`}>
-            <span className="truncate">{isSaved ? 'Избранное' : (participant?.username || 'Загрузка...')}</span>
-            {!isSaved && participant?.verified && (
+            <span className="truncate">{isSaved ? 'Избранное' : isGroup ? chat.name : (participant?.username || 'Загрузка...')}</span>
+            {!isSaved && !isGroup && participant?.verified && (
               <VerifiedIcon className="w-4 h-4 ml-1.5 flex-shrink-0" />
             )}
           </span>
@@ -68,7 +74,7 @@ const ChatItem: React.FC<{
         </div>
         <div className="flex items-center justify-between">
             <p className={`text-[12px] md:text-[13px] truncate flex-1 pr-2 ${isActive ? 'text-white/80' : 'text-[#7f91a4]'}`}>
-                {chat.lastMessage?.text || (isSaved ? 'Ваше личное облако' : 'История очищена')}
+                {chat.lastMessage?.text || (isSaved ? 'Ваше личное облако' : isGroup ? 'Группа создана' : 'История очищена')}
             </p>
             {unreadCount > 0 && !isActive && (
                 <div className="bg-blue-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-lg animate-fade-in border border-white/10">
@@ -91,6 +97,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [registry, setRegistry] = useState<User[]>([]);
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [canInstall, setCanInstall] = useState(false);
+  const [showGroupCreate, setShowGroupCreate] = useState(false);
+
+  const isAdmin = ['@bee', '@megannait'].includes(currentUser.username_handle.toLowerCase());
 
   useEffect(() => {
     const handleInstallable = () => setCanInstall(true);
@@ -98,13 +107,27 @@ const Sidebar: React.FC<SidebarProps> = ({
     return () => window.removeEventListener('pwa-installable', handleInstallable);
   }, []);
 
+  const displayChats = useMemo(() => {
+    const all = [...chats];
+    if (!all.find(c => c.type === 'saved')) {
+      all.push({ id: 'saved', type: 'saved', participants: [currentUser], unreadCount: 0 });
+    }
+    return all.sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
+  }, [chats, currentUser]);
+
   useEffect(() => {
     if (search.trim().length > 1) {
-      const q = query(
-        collection(db, 'users'),
-        where('username_handle', '>=', search.startsWith('@') ? search.toLowerCase() : '@' + search.toLowerCase()),
-        where('username_handle', '<=', (search.startsWith('@') ? search.toLowerCase() : '@' + search.toLowerCase()) + '\uf8ff')
-      );
+      let q;
+      if (search.startsWith('+')) {
+        q = query(collection(db, 'users'), where('phoneNumber', '==', search));
+      } else {
+        q = query(
+          collection(db, 'users'),
+          where('username_handle', '>=', search.startsWith('@') ? search.toLowerCase() : '@' + search.toLowerCase()),
+          where('username_handle', '<=', (search.startsWith('@') ? search.toLowerCase() : '@' + search.toLowerCase()) + '\uf8ff')
+        );
+      }
+      
       getDocs(q).then(snap => {
         setSearchResults(snap.docs.map(d => ({ id: d.id, ...d.data() }) as User).filter(u => u.id !== currentUser.id));
       });
@@ -115,7 +138,15 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const loadAllUsers = () => {
     getDocs(collection(db, 'users')).then(snap => {
-      setRegistry(snap.docs.map(d => ({ id: d.id, ...d.data() }) as User).filter(u => u.id !== currentUser.id));
+      const users = snap.docs.map(d => ({ id: d.id, ...d.data() }) as User).filter(u => u.id !== currentUser.id);
+      const sortedUsers = users.sort((a, b) => {
+        if (a.verified && !b.verified) return -1;
+        if (!a.verified && b.verified) return 1;
+        const timeA = a.createdAt || a.lastSeen || 0;
+        const timeB = b.createdAt || b.lastSeen || 0;
+        return timeB - timeA;
+      });
+      setRegistry(sortedUsers);
     });
   };
 
@@ -138,28 +169,36 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="fixed inset-0 z-[102] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#17212b] w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-slide-up flex flex-col max-h-[70vh] border border-white/5">
             <div className="p-4 border-b border-[#0e1621] flex items-center justify-between">
-              <span className="font-bold text-white">Все контакты</span>
+              <span className="font-bold text-white">Пользователи</span>
               <button onClick={() => setShowContactsSearch(false)} className="text-[#7f91a4] p-1 hover:text-white transition-all"><i className="fa-solid fa-xmark"></i></button>
             </div>
             <div className="p-4 overflow-y-auto no-scrollbar">
               {registry.map(u => (
-                <button key={u.id} onClick={() => { onNewChat(u); setShowContactsSearch(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-white/5 rounded-2xl transition-all active:scale-[0.98]">
-                  <div className="relative shrink-0">
+                <div key={u.id} className="w-full flex items-center gap-3 p-3 hover:bg-white/5 rounded-2xl transition-all group">
+                  <button onClick={() => { onProfileOpen(u); setShowContactsSearch(false); }} className="relative shrink-0 active:scale-90 transition-transform">
                     <img src={u.avatarUrl} className="w-10 h-10 rounded-full object-cover border border-white/10" />
                     {u.online && <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#17212b] rounded-full" />}
-                  </div>
-                  <div className="text-left truncate min-w-0 flex-1">
+                  </button>
+                  <button onClick={() => { onNewChat(u); setShowContactsSearch(false); }} className="text-left truncate min-w-0 flex-1 active:scale-[0.98]">
                     <div className="font-bold text-sm text-white flex items-center gap-1 min-w-0">
                       <span className="truncate">{u.username}</span>
                       {u.verified && <VerifiedIcon className="w-3.5 h-3.5 ml-1" />}
                     </div>
                     <div className="text-[11px] text-blue-400 font-bold truncate">{u.username_handle}</div>
-                  </div>
-                </button>
+                  </button>
+                </div>
               ))}
             </div>
           </div>
         </div>
+      )}
+
+      {showGroupCreate && (
+        <GroupCreateModal 
+          currentUser={currentUser} 
+          onClose={() => setShowGroupCreate(false)} 
+          onCreated={(id) => { onChatSelect(id); setShowGroupCreate(false); }}
+        />
       )}
 
       <div className={`fixed inset-y-0 left-0 w-72 bg-[#17212b] z-[101] transform transition-transform duration-300 ease-out flex flex-col border-r border-[#0e1621] pt-[env(safe-area-inset-top)] ${isDrawerOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -178,10 +217,19 @@ const Sidebar: React.FC<SidebarProps> = ({
             <i className="fa-solid fa-user text-xl text-[#7f91a4] group-hover:text-white transition-all w-6 text-center"></i>
             <span className="text-sm font-medium text-white">Мой профиль</span>
           </button>
-          <button onClick={() => { loadAllUsers(); setShowContactsSearch(true); setIsDrawerOpen(false); }} className="w-full flex items-center gap-6 px-5 py-3.5 hover:bg-white/5 transition-all group text-left active:bg-white/10">
-            <i className="fa-solid fa-address-book text-xl text-[#7f91a4] group-hover:text-white transition-all w-6 text-center"></i>
-            <span className="text-sm font-medium text-white">Контакты</span>
+          
+          {isAdmin && (
+            <button onClick={() => { loadAllUsers(); setShowContactsSearch(true); setIsDrawerOpen(false); }} className="w-full flex items-center gap-6 px-5 py-3.5 hover:bg-white/5 transition-all group text-left active:bg-white/10">
+              <i className="fa-solid fa-users text-xl text-[#7f91a4] group-hover:text-white transition-all w-6 text-center"></i>
+              <span className="text-sm font-medium text-white">Пользователи</span>
+            </button>
+          )}
+
+          <button onClick={() => { setShowGroupCreate(true); setIsDrawerOpen(false); }} className="w-full flex items-center gap-6 px-5 py-3.5 hover:bg-white/5 transition-all group text-left active:bg-white/10">
+            <i className="fa-solid fa-users-rectangle text-xl text-[#7f91a4] group-hover:text-white transition-all w-6 text-center"></i>
+            <span className="text-sm font-medium text-white">Создать группу</span>
           </button>
+
           <button onClick={() => { onChatSelect('saved'); setIsDrawerOpen(false); }} className="w-full flex items-center gap-6 px-5 py-3.5 hover:bg-white/5 transition-all group text-left active:bg-white/10">
             <i className="fa-solid fa-bookmark text-xl text-[#7f91a4] group-hover:text-white transition-all w-6 text-center"></i>
             <span className="text-sm font-medium text-white">Избранное</span>
@@ -209,7 +257,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex-1 relative">
           <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-[12px] text-[#7f91a4]"></i>
           <input 
-            type="text" placeholder="Поиск" value={search} onChange={e => setSearch(e.target.value)} 
+            type="text" placeholder="Поиск (имя или номер)" value={search} onChange={e => setSearch(e.target.value)} 
             className="w-full bg-[#0e1621] rounded-full py-2 pl-10 pr-4 text-sm outline-none text-white placeholder-[#7f91a4] border border-white/5 focus:border-blue-500/30 transition-all" 
           />
           {search && (
@@ -225,25 +273,25 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="p-2">
             <div className="px-4 py-2 text-[10px] font-black text-blue-400 uppercase tracking-widest">Глобальный поиск</div>
             {searchResults.map(u => (
-              <button key={u.id} onClick={() => { onNewChat(u); setSearch(''); }} className="w-full flex items-center gap-3.5 p-3.5 hover:bg-white/5 transition-all animate-fade-in rounded-2xl active:scale-[0.98]">
-                <div className="relative flex-shrink-0">
+              <div key={u.id} className="w-full flex items-center gap-3.5 p-3.5 hover:bg-white/5 transition-all animate-fade-in rounded-2xl group">
+                <button onClick={() => onProfileOpen(u)} className="relative flex-shrink-0 active:scale-90 transition-transform">
                   <img src={u.avatarUrl} className="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover border border-white/10" />
-                </div>
-                <div className="text-left truncate flex-1 min-w-0">
+                </button>
+                <button onClick={() => { onNewChat(u); setSearch(''); }} className="text-left truncate flex-1 min-w-0 active:scale-[0.98]">
                   <div className="font-bold text-[15px] md:text-[16px] text-white flex items-center gap-1 min-w-0">
                     <span className="truncate">{u.username}</span>
                     {u.verified && <VerifiedIcon className="w-4 h-4 ml-1" />}
                   </div>
                   <div className="text-[11px] md:text-[12px] text-blue-400 font-bold truncate">{u.username_handle}</div>
-                </div>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         )}
 
         {search.trim().length <= 1 && (
           <div className="flex flex-col pb-[max(env(safe-area-inset-bottom),10px)]">
-            {chats.sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0)).map(chat => (
+            {displayChats.map(chat => (
               <ChatItem 
                 key={chat.id} chat={chat} isActive={activeChatId === chat.id} 
                 currentUserId={currentUser.id} onClick={() => onChatSelect(chat.id)} 

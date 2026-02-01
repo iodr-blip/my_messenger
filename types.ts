@@ -20,6 +20,7 @@ export interface User {
   online: boolean;
   lastSeen: number;
   verified?: boolean;
+  createdAt?: number;
 }
 
 export interface Message {
@@ -45,6 +46,11 @@ export interface Message {
 export interface Chat {
   id: string;
   type: 'private' | 'group' | 'bot' | 'saved';
+  name?: string;
+  avatarUrl?: string;
+  description?: string;
+  ownerId?: string;
+  inviteLink?: string;
   participants: User[];
   participantsUids?: string[];
   lastMessage?: Message;
@@ -53,6 +59,7 @@ export interface Chat {
   pinned?: boolean;
   archived?: boolean;
   pinnedMessageId?: string | null;
+  historyVisible?: boolean;
 }
 
 export interface CallSession {

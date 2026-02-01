@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { User, AuthStep } from '../types';
 import { auth, db } from '../services/firebase';
@@ -13,7 +14,6 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form Fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -23,12 +23,12 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
 
   const handleError = (err: any) => {
     console.error("Auth Error:", err);
-    if (err.code === 'auth/configuration-not-found') {
-      setError('Метод входа по Email/паролю не включен.');
-    } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-      setError('Неверная почта или пароль');
+    if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+      setError('Неверная почта или пароль. Проверьте данные.');
     } else if (err.code === 'auth/email-already-in-use') {
       setError('Этот email уже зарегистрирован');
+    } else if (err.code === 'auth/weak-password') {
+      setError('Пароль должен быть не менее 6 символов');
     } else {
       setError('Произошла ошибка при аутентификации');
     }
@@ -92,6 +92,7 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
         avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(firstName)}+${encodeURIComponent(lastName)}&background=3390ec&color=fff`,
         online: true,
         lastSeen: Date.now(),
+        createdAt: Date.now(),
         verified: false
       };
       
@@ -112,7 +113,7 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
         else if (step === 'register_profile') setStep('register_username');
         setError(null);
       }}
-      className="absolute left-6 top-8 text-gray-300 hover:text-blue-500 transition-colors"
+      className="absolute left-6 top-8 text-gray-500 hover:text-blue-500 transition-colors"
     >
       <i className="fa-solid fa-arrow-left text-xl"></i>
     </button>
@@ -164,104 +165,71 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
           </div>
         )}
 
-        {step === 'login' && (
-          <form onSubmit={handleLogin} className="space-y-5">
-            <h2 className="text-2xl font-black text-center mb-10 mt-6">Вход</h2>
+        {(step === 'login' || step === 'register_creds' || step === 'register_username' || step === 'register_profile') && (
+          <form onSubmit={step === 'login' ? handleLogin : step === 'register_profile' ? finishRegistration : (e) => e.preventDefault()} className="space-y-5">
+            <h2 className="text-2xl font-black text-center mb-10 mt-6">
+              {step === 'login' ? 'Вход' : step === 'register_creds' ? 'Регистрация' : step === 'register_username' ? 'Юзернейм' : 'Профиль'}
+            </h2>
+            
             <div className="space-y-3">
-              <input 
-                type="email" placeholder="Электронная почта"
-                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
-                value={email} onChange={e => setEmail(e.target.value)}
-              />
-              <input 
-                type="password" placeholder="Пароль"
-                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
-                value={password} onChange={e => setPassword(e.target.value)}
-              />
+              {(step === 'login' || step === 'register_creds') && (
+                <>
+                  <input 
+                    type="email" placeholder="Электронная почта"
+                    className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
+                    value={email} onChange={e => setEmail(e.target.value)}
+                  />
+                  <input 
+                    type="password" placeholder="Пароль"
+                    className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
+                    value={password} onChange={e => setPassword(e.target.value)}
+                  />
+                  {step === 'register_creds' && (
+                    <input 
+                      type="password" placeholder="Подтвердите пароль"
+                      className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
+                      value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                    />
+                  )}
+                </>
+              )}
+
+              {step === 'register_username' && (
+                <div className="relative">
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-500 font-black text-lg">@</span>
+                  <input 
+                    type="text" placeholder="username"
+                    className="w-full p-4 pl-12 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-black text-lg"
+                    value={usernameHandle} onChange={e => setUsernameHandle(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {step === 'register_profile' && (
+                <>
+                  <input 
+                    type="text" placeholder="Имя"
+                    className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
+                    value={firstName} onChange={e => setFirstName(e.target.value)}
+                  />
+                  <input 
+                    type="text" placeholder="Фамилия (необязательно)"
+                    className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
+                    value={lastName} onChange={e => setLastName(e.target.value)}
+                  />
+                </>
+              )}
             </div>
+
             {error && <div className="text-red-500 text-xs text-center font-bold animate-fade-in">{error}</div>}
+
             <button 
-              type="submit" disabled={loading}
+              type={step === 'login' || step === 'register_profile' ? "submit" : "button"}
+              onClick={step === 'register_creds' || step === 'register_username' ? nextRegisterStep : undefined}
+              disabled={loading}
               className="w-full bg-[#3390ec] text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
             >
-              {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Войти'}
-            </button>
-          </form>
-        )}
-
-        {step === 'register_creds' && (
-          <div className="space-y-5">
-            <h2 className="text-2xl font-black text-center mb-10 mt-6">Регистрация</h2>
-            <div className="space-y-3">
-              <input 
-                type="email" placeholder="Электронная почта"
-                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
-                value={email} onChange={e => setEmail(e.target.value)}
-              />
-              <input 
-                type="password" placeholder="Пароль"
-                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
-                value={password} onChange={e => setPassword(e.target.value)}
-              />
-              <input 
-                type="password" placeholder="Подтвердите пароль"
-                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
-                value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
-              />
-            </div>
-            {error && <div className="text-red-500 text-xs text-center font-bold animate-fade-in">{error}</div>}
-            <button 
-              onClick={nextRegisterStep}
-              className="w-full bg-[#3390ec] text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all"
-            >
-              Далее
-            </button>
-          </div>
-        )}
-
-        {step === 'register_username' && (
-          <div className="space-y-5">
-            <h2 className="text-2xl font-black text-center mb-2 mt-6">Юзернейм</h2>
-            <p className="text-xs text-center text-gray-400 mb-8 px-4 font-medium">Ваш уникальный идентификатор для поиска в сети MeganNait</p>
-            <div className="relative">
-              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-500 font-black text-lg">@</span>
-              <input 
-                type="text" placeholder="username"
-                className="w-full p-4 pl-12 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-black text-lg"
-                value={usernameHandle} onChange={e => setUsernameHandle(e.target.value)}
-              />
-            </div>
-            {error && <div className="text-red-500 text-xs text-center font-bold animate-fade-in">{error}</div>}
-            <button 
-              onClick={nextRegisterStep}
-              className="w-full bg-[#3390ec] text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Далее'}
-            </button>
-          </div>
-        )}
-
-        {step === 'register_profile' && (
-          <form onSubmit={finishRegistration} className="space-y-5">
-            <h2 className="text-2xl font-black text-center mb-10 mt-6">Профиль</h2>
-            <div className="space-y-3">
-              <input 
-                type="text" placeholder="Имя"
-                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
-                value={firstName} onChange={e => setFirstName(e.target.value)}
-              />
-              <input 
-                type="text" placeholder="Фамилия (необязательно)"
-                className="w-full p-4 bg-[#f1f1f1] rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium placeholder:text-gray-400"
-                value={lastName} onChange={e => setLastName(e.target.value)}
-              />
-            </div>
-            {error && <div className="text-red-500 text-xs text-center font-bold animate-fade-in">{error}</div>}
-            <button 
-              type="submit" disabled={loading}
-              className="w-full bg-[#3390ec] text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Завершить'}
+              {loading ? <i className="fas fa-spinner fa-spin"></i> : step === 'login' ? 'Войти' : 'Далее'}
             </button>
           </form>
         )}
