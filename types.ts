@@ -37,6 +37,7 @@ export interface Message {
   fileName?: string;
   fileSize?: string;
   replyPreview?: {
+    id: string;
     senderName: string;
     text: string;
   };
@@ -53,7 +54,12 @@ export interface Chat {
   inviteLink?: string;
   participants: User[];
   participantsUids?: string[];
-  lastMessage?: Message;
+  lastMessage?: {
+    text: string;
+    timestamp: number;
+    senderId: string;
+    senderName?: string;
+  };
   unreadCount?: number; // For the local user
   unreadCounts?: Record<string, number>; // Global unread map {userId: count}
   pinned?: boolean;

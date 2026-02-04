@@ -11,6 +11,7 @@ interface ProfileModalProps {
   isMe: boolean;
   onUpdate?: (updatedUser: User) => void;
   onClose: () => void;
+  onStartChat?: (user: User) => void;
 }
 
 type ModalView = 'VIEW' | 'EDIT' | 'SUB_NAME' | 'SUB_HANDLE' | 'SUB_BIO' | 'SUB_PHONE';
@@ -155,6 +156,31 @@ export const formatPhoneDisplay = (phone?: string) => {
   return res;
 };
 
+const formatLastSeen = (lastSeen?: number, online?: boolean) => {
+    if (online) return 'в сети';
+    if (!lastSeen) return 'был(а) недавно';
+    const now = Date.now();
+    const diff = now - lastSeen;
+    const mins = Math.floor(diff / 60000);
+    
+    if (mins < 1) return 'был(а) только что';
+    if (mins < 60) return `был(а) ${mins} мин. назад`;
+    
+    const d = new Date(lastSeen);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    
+    if (d.toDateString() === today.toDateString()) {
+        return `был(а) сегодня в ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+    if (d.toDateString() === yesterday.toDateString()) {
+        return `был(а) вчера в ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+    
+    return `был(а) ${d.toLocaleDateString()}`;
+};
+
 const FloatingInput = ({ label, value, onChange, placeholder = "", autoFocus = false, maxLength = 100, type = "text", error = false }: any) => {
   const [isFocused, setIsFocused] = useState(false);
   const isActive = isFocused || (value && value.length > 0);
@@ -170,7 +196,7 @@ const FloatingInput = ({ label, value, onChange, placeholder = "", autoFocus = f
   );
 };
 
-const ProfileModal: React.FC<ProfileModalProps> = ({ user, currentUser, isMe, onUpdate, onClose }) => {
+const ProfileModal: React.FC<ProfileModalProps> = ({ user, currentUser, isMe, onUpdate, onClose, onStartChat }) => {
   const [view, setView] = useState<ModalView>('VIEW');
   const [tempData, setTempData] = useState<User>({ ...user });
   const [cropperSrc, setCropperSrc] = useState<string | null>(null);
@@ -214,6 +240,35 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ user, currentUser, isMe, on
           setSubLoading(false);
           return;
         }
+      }
+    }
+
+    if (view === 'SUB_HANDLE') {
+      const cleanHandle = finalData.username_handle.replace('@', '').toLowerCase().trim();
+      if (!/^[a-z0-9_]+$/.test(cleanHandle)) {
+        setSubError('Только латиница, цифры и "_"');
+        return;
+      }
+      if (cleanHandle.length < 5) {
+        setSubError('Минимум 5 символов');
+        return;
+      }
+      
+      setSubLoading(true);
+      try {
+        const handle = `@${cleanHandle}`;
+        const q = query(collection(db, 'users'), where('username_handle', '==', handle));
+        const snap = await getDocs(q);
+        if (!snap.empty && snap.docs[0].id !== user.id) {
+          setSubError('Этот юзернейм уже занят');
+          setSubLoading(false);
+          return;
+        }
+        finalData.username_handle = handle;
+      } catch (e) {
+        setSubError('Ошибка проверки юзернейма');
+        setSubLoading(false);
+        return;
       }
     }
 
@@ -292,32 +347,51 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ user, currentUser, isMe, on
             </div>
             <h3 className="text-xl font-semibold truncate max-w-full px-4 text-white flex items-center gap-1.5">{user.username} {user.surname || ''} {user.verified && <VerifiedIcon />}</h3>
             <span className={`text-xs font-medium ${user.online ? 'text-blue-400' : 'text-[#7f91a4]'}`}>
-              {user.online ? 'в сети' : 'был(а) недавно'}
+              {formatLastSeen(user.lastSeen, user.online)}
             </span>
           </div>
-          <div className="p-4 space-y-1">
+
+          <div className="p-4 space-y-1 flex-1">
             <div className="flex gap-5 items-start p-3 hover:bg-white/5 rounded-xl transition-all group">
-              <i className="fa-solid fa-circle-info text-[#7f91a4] mt-1 text-lg w-5 text-center group-hover:text-blue-400"></i>
+              <div className="w-9 h-9 rounded-full bg-[#7f91a4]/10 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-blue-400/10 transition-colors">
+                <i className="fa-solid fa-info text-[#7f91a4] text-[13px] group-hover:text-blue-400"></i>
+              </div>
               <div className="flex-1">
                 <div className="text-white text-[15px] whitespace-pre-wrap break-words leading-tight">{user.bio || 'Пользуюсь MeganNait 💎'}</div>
                 <div className="text-[#7f91a4] text-xs font-medium mt-0.5">О себе</div>
               </div>
             </div>
             <div className="flex gap-5 items-start p-3 hover:bg-white/5 rounded-xl transition-all group">
-              <i className="fa-solid fa-at text-[#7f91a4] mt-1 text-lg w-5 text-center group-hover:text-blue-400"></i>
+              <div className="w-9 h-9 rounded-full bg-[#7f91a4]/10 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-blue-400/10 transition-colors">
+                <i className="fa-solid fa-at text-[#7f91a4] text-[13px] group-hover:text-blue-400"></i>
+              </div>
               <div className="flex-1">
                 <div className="text-blue-400 text-[15px] font-bold">{user.username_handle}</div>
                 <div className="text-[#7f91a4] text-xs font-medium mt-0.5">Имя пользователя</div>
               </div>
             </div>
             <div className="flex gap-5 items-start p-3 hover:bg-white/5 rounded-xl transition-all group">
-              <i className="fa-solid fa-phone text-[#7f91a4] mt-1 text-lg w-5 text-center group-hover:text-blue-400"></i>
+              <div className="w-9 h-9 rounded-full bg-[#7f91a4]/10 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-blue-400/10 transition-colors">
+                <i className="fa-solid fa-phone text-[#7f91a4] text-[13px] group-hover:text-blue-400"></i>
+              </div>
               <div className="flex-1">
                 <div className="text-white text-[15px] font-medium">{formatPhoneDisplay(user.phoneNumber)}</div>
                 <div className="text-[#7f91a4] text-xs font-medium mt-0.5">Телефон</div>
               </div>
             </div>
           </div>
+
+          {!isMe && onStartChat && (
+            <div className="p-4 shrink-0 bg-[#17212b] border-t border-white/5">
+              <button 
+                onClick={() => onStartChat(user)}
+                className="w-full py-4 bg-[#3390ec] text-white font-bold rounded-2xl active:scale-[0.98] transition-all shadow-lg hover:brightness-110 flex items-center justify-center gap-3"
+              >
+                <i className="fa-solid fa-message text-lg"></i>
+                Написать
+              </button>
+            </div>
+          )}
         </div>
       );
     }
@@ -371,7 +445,21 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ user, currentUser, isMe, on
     } else if (view === 'SUB_HANDLE') {
       title = "Имя пользователя";
       isSaveDisabled = subLoading || tempData.username_handle.length < 2;
-      content = (<div className="space-y-4"><FloatingInput label="username" autoFocus value={tempData.username_handle.replace('@', '')} onChange={(e: any) => setTempData({ ...tempData, username_handle: `@${e.target.value.toLowerCase()}` })} /><p className="text-[#7f91a4] text-[11px] leading-relaxed italic">Публичное имя для поиска.</p></div>);
+      content = (
+        <div className="space-y-4">
+          <FloatingInput 
+            error={!!subError}
+            label="username" 
+            autoFocus 
+            value={tempData.username_handle.replace('@', '')} 
+            onChange={(e: any) => {
+              setTempData({ ...tempData, username_handle: `@${e.target.value.toLowerCase()}` });
+              setSubError(null);
+            }} 
+          />
+          {subError ? <p className="text-red-400 text-[10px] font-bold animate-fade-in">{subError}</p> : <p className="text-[#7f91a4] text-[11px] leading-relaxed italic">Публичное имя для поиска.</p>}
+        </div>
+      );
     } else if (view === 'SUB_BIO') {
       title = "О себе";
       content = (<div className="space-y-4"><div className="relative pt-5"><textarea ref={bioRef} autoFocus maxLength={70} rows={1} className="w-full bg-transparent border-b border-white/10 outline-none text-white py-1.5 transition-all resize-none focus:border-blue-500 font-medium" value={tempData.bio} onChange={e => setTempData({ ...tempData, bio: e.target.value })} /><label className="absolute top-0 left-0 text-blue-500 text-[10px] font-bold uppercase">О себе</label><span className="absolute right-0 top-0 text-[#7f91a4] text-[10px] font-bold">{70 - tempData.bio.length}</span></div></div>);
@@ -413,7 +501,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ user, currentUser, isMe, on
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center sm:p-4">
+    <div className="fixed inset-0 z-[400] flex items-center justify-center sm:p-4">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-fade-in" onClick={onClose} />
       <div className="relative w-full sm:max-w-[360px] h-full sm:h-[560px] bg-[#17212b] sm:rounded-3xl shadow-2xl overflow-hidden animate-slide-up flex flex-col border border-white/5">
         {!cropperSrc && renderHeader()}

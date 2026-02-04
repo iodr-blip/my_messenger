@@ -58,7 +58,19 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
         setStep('register_username');
       } else if (step === 'register_username') {
         if (!usernameHandle) return setError('Введите юзернейм');
-        const handle = `@${usernameHandle.toLowerCase().replace(/[^a-z0-9_]/g, '')}`;
+        
+        const cleanHandle = usernameHandle.toLowerCase().trim();
+        
+        // Validation: Strictly Latin, digits, underscore. Min 5 chars.
+        if (!/^[a-z0-9_]+$/.test(cleanHandle)) {
+          return setError('Допустимые символы: a-z, 0-9, _');
+        }
+        
+        if (cleanHandle.length < 5) {
+          return setError('Минимум 5 символов');
+        }
+
+        const handle = `@${cleanHandle}`;
         
         setLoading(true);
         const q = query(collection(db, 'users'), where('username_handle', '==', handle));
@@ -81,7 +93,7 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const fbUser = userCredential.user;
-      const handle = `@${usernameHandle.toLowerCase().replace(/[^a-z0-9_]/g, '')}`;
+      const handle = `@${usernameHandle.toLowerCase().trim()}`;
       
       const userData = {
         username: firstName,
