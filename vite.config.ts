@@ -3,14 +3,9 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: '/my_messenger/',
+  base: '/',  // Убери /my_messenger/ для кастомного домена!
   build: {
     outDir: 'dist',
-    assetsDir: 'assets',
-    rollupOptions: {
-      output: {
-        manualChunks: undefined
-      }
-    }
+    assetsDir: 'assets'
   }
 })
